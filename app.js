@@ -1051,6 +1051,177 @@ document.getElementById('confirmModal').addEventListener('click', e => {
   }
 });
 
+// ── Report Modal ──
+let _reportChart = null;
+let _reportMode  = 'weekly';
+
+document.getElementById('btnOpenReport').addEventListener('click', openReport);
+document.getElementById('btnCloseReport').addEventListener('click', () => {
+  document.getElementById('reportModal').classList.remove('open');
+});
+document.getElementById('reportModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) document.getElementById('reportModal').classList.remove('open');
+});
+document.getElementById('btnWeekly').addEventListener('click', () => setReportMode('weekly'));
+document.getElementById('btnMonthly').addEventListener('click', () => setReportMode('monthly'));
+
+function setReportMode(mode) {
+  _reportMode = mode;
+  document.getElementById('btnWeekly').classList.toggle('active', mode === 'weekly');
+  document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
+  loadAndRenderReport();
+}
+
+function openReport() {
+  document.getElementById('reportModal').classList.add('open');
+  loadAndRenderReport();
+}
+
+function loadAndRenderReport() {
+  dbDaily.orderByKey().limitToLast(62).once('value', snap => {
+    const records = Object.values(snap.val() || {});
+    if (_reportMode === 'weekly') renderWeeklyReport(records);
+    else renderMonthlyReport(records);
+  });
+}
+
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function renderWeeklyReport(records) {
+  const DAY = ['日','一','二','三','四','五','六'];
+  const today = new Date();
+  const labels = [], revenues = [];
+  let tableCount = 0;
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const rec = records.find(r => r.date === toDateStr(d));
+    labels.push(`週${DAY[d.getDay()]}`);
+    revenues.push(rec ? rec.revenue : 0);
+    if (rec) tableCount += rec.tableCount;
+  }
+
+  const currentTotal = revenues.reduce((s, r) => s + r, 0);
+  let prevTotal = 0;
+  for (let i = 13; i >= 7; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const rec = records.find(r => r.date === toDateStr(d));
+    if (rec) prevTotal += rec.revenue;
+  }
+
+  const activeDays = revenues.filter(r => r > 0).length;
+  const dailyAvg   = activeDays > 0 ? Math.round(currentTotal / activeDays) : 0;
+
+  document.getElementById('reportPeriodLabel').textContent = '近 7 天營業額';
+  updateReportSummary(currentTotal, prevTotal, tableCount, dailyAvg);
+  drawChart(labels, revenues);
+}
+
+function renderMonthlyReport(records) {
+  const today = new Date();
+  const labels = [], revenues = [];
+  let tableCount = 0;
+
+  for (let w = 3; w >= 0; w--) {
+    let weekRev = 0, weekTables = 0;
+    for (let d = 6; d >= 0; d--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - w * 7 - d);
+      const rec = records.find(r => r.date === toDateStr(date));
+      if (rec) { weekRev += rec.revenue; weekTables += rec.tableCount; }
+    }
+    labels.push(w === 0 ? '本週' : `${w}週前`);
+    revenues.push(weekRev);
+    tableCount += weekTables;
+  }
+
+  const currentTotal = revenues.reduce((s, r) => s + r, 0);
+  let prevTotal = 0;
+  for (let i = 28; i < 56; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const rec = records.find(r => r.date === toDateStr(d));
+    if (rec) prevTotal += rec.revenue;
+  }
+
+  let activeDays = 0;
+  for (let i = 0; i < 28; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const rec = records.find(r => r.date === toDateStr(d));
+    if (rec && rec.revenue > 0) activeDays++;
+  }
+  const dailyAvg = activeDays > 0 ? Math.round(currentTotal / activeDays) : 0;
+
+  document.getElementById('reportPeriodLabel').textContent = '近 28 天營業額';
+  updateReportSummary(currentTotal, prevTotal, tableCount, dailyAvg);
+  drawChart(labels, revenues);
+}
+
+function updateReportSummary(current, prev, tableCount, dailyAvg) {
+  document.getElementById('reportRevenue').textContent    = current > 0 ? '$' + current.toLocaleString() : '—';
+  document.getElementById('reportTableCount').textContent = tableCount > 0 ? tableCount + ' 桌' : '—';
+  document.getElementById('reportDailyAvg').textContent   = dailyAvg > 0 ? '$' + dailyAvg.toLocaleString() : '—';
+
+  const el = document.getElementById('reportChange');
+  if (current === 0 && prev === 0) {
+    el.textContent = '尚無日結資料'; el.className = 'report-change flat';
+  } else if (prev === 0) {
+    el.textContent = '上期無資料可比較'; el.className = 'report-change flat';
+  } else {
+    const pct = Math.round(((current - prev) / prev) * 100);
+    el.textContent = `${pct >= 0 ? '↑' : '↓'} ${Math.abs(pct)}% 較上期`;
+    el.className   = 'report-change ' + (pct >= 0 ? 'up' : 'down');
+  }
+}
+
+function drawChart(labels, revenues) {
+  if (_reportChart) { _reportChart.destroy(); _reportChart = null; }
+
+  const ctx = document.getElementById('revenueChart').getContext('2d');
+  _reportChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: revenues,
+        backgroundColor: revenues.map(r => r > 0 ? 'rgba(152,66,21,0.80)' : 'rgba(152,66,21,0.12)'),
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.parsed.y > 0 ? ' $' + ctx.parsed.y.toLocaleString() : ' 無資料'
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#897269', font: { size: 11, weight: '700', family: 'Noto Sans TC' } }
+        },
+        y: {
+          grid: { color: 'rgba(220,193,182,0.3)' },
+          ticks: {
+            color: '#897269', font: { size: 10 },
+            callback: v => v === 0 ? '0' : '$' + v.toLocaleString()
+          },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
 // ── Toast ──
 function showToast(msg) {
   const toast = document.getElementById('toast');

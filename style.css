@@ -1200,6 +1200,97 @@ body {
 .toast.show { transform: translateX(-50%) translateY(0); }
 
 /* ══════════════════════════════════════════
+   Report Modal
+══════════════════════════════════════════ */
+.report-toggle {
+  display: flex;
+  background: var(--surface-low);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  margin-bottom: 16px;
+  gap: 4px;
+}
+.report-toggle-btn {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: none;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.report-toggle-btn.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.report-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--primary-faint);
+  border: 1.5px solid rgba(152,66,21,0.12);
+  border-radius: var(--radius-sm);
+}
+.report-period-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.report-revenue {
+  font-family: 'Manrope', sans-serif;
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--primary);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.report-change { font-size: 0.78rem; font-weight: 700; }
+.report-change.up   { color: var(--green); }
+.report-change.down { color: var(--red); }
+.report-change.flat { color: var(--text-muted); }
+
+.report-summary-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.report-meta-item { text-align: right; }
+.report-meta-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+.report-meta-value {
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.report-chart-wrap {
+  position: relative;
+  padding: 8px 0 4px;
+}
+
+/* ══════════════════════════════════════════
    Responsive
 ══════════════════════════════════════════ */
 @media (max-width: 420px) {

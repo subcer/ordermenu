@@ -38,6 +38,10 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn-header-action" id="btnOpenReport" title="營業報表">
+        <span class="material-symbols-outlined">bar_chart</span>
+        <span class="btn-action-label">報表</span>
+      </button>
       <button class="btn-header-action" id="btnOpenMenu" title="菜單管理">
         <span class="material-symbols-outlined">restaurant_menu</span>
         <span class="btn-action-label">菜單</span>
@@ -476,9 +480,54 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════
+       營業報表 Modal
+  ══════════════════════════════════════ -->
+  <div class="modal-overlay" id="reportModal">
+    <div class="modal modal-menu">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.3rem;">bar_chart</span>
+          <span class="modal-title">營業報表</span>
+        </div>
+        <button class="modal-close" id="btnCloseReport">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="report-toggle">
+        <button class="report-toggle-btn active" id="btnWeekly">週報</button>
+        <button class="report-toggle-btn" id="btnMonthly">月報</button>
+      </div>
+
+      <div class="report-summary">
+        <div class="report-summary-main">
+          <p class="report-period-label" id="reportPeriodLabel">近 7 天營業額</p>
+          <p class="report-revenue" id="reportRevenue">—</p>
+          <p class="report-change" id="reportChange"></p>
+        </div>
+        <div class="report-summary-meta">
+          <div class="report-meta-item">
+            <span class="report-meta-label">結帳桌次</span>
+            <span class="report-meta-value" id="reportTableCount">—</span>
+          </div>
+          <div class="report-meta-item">
+            <span class="report-meta-label">日均營業額</span>
+            <span class="report-meta-value" id="reportDailyAvg">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-chart-wrap">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
