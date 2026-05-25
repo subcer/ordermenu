@@ -692,8 +692,9 @@ function parseVoiceText(rawText) {
     let qty = 1;
     const numBefore = extractNum(lookBefore);
     const numAfter  = extractNum(lookAfter);
-    if (numBefore !== null && numBefore > 0) qty = numBefore;
-    else if (numAfter !== null && numAfter > 0) qty = numAfter;
+    // 優先讀品名後面的數量（"美式一杯" 這種常見語序），其次才讀前面
+    if (numAfter  !== null && numAfter  > 0) qty = numAfter;
+    else if (numBefore !== null && numBefore > 0) qty = numBefore;
 
     // 備註：有選項先模糊比對選項，其餘用修飾詞
     const surroundText = lookBefore + lookAfter;
