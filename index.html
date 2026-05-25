@@ -350,17 +350,13 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label-sm">快速選擇</label>
-        <div class="preset-chips">
-          <button class="chip table-preset" data-name="桌1">桌1</button>
-          <button class="chip table-preset" data-name="桌2">桌2</button>
-          <button class="chip table-preset" data-name="桌3">桌3</button>
-          <button class="chip table-preset" data-name="桌4">桌4</button>
-          <button class="chip table-preset" data-name="桌5">桌5</button>
-          <button class="chip table-preset" data-name="吧台">吧台</button>
-          <button class="chip table-preset" data-name="戶外A">戶外A</button>
-          <button class="chip table-preset" data-name="外帶">外帶</button>
+        <div class="preset-label-row">
+          <label class="form-label-sm">快速選擇</label>
+          <button class="btn-icon-sm" id="btnEditPresets" title="編輯快速選擇">
+            <span class="material-symbols-outlined">edit</span>
+          </button>
         </div>
+        <div class="preset-chips" id="presetChips"></div>
       </div>
 
       <button class="btn-primary-lg" id="btnAddTable">

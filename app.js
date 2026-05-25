@@ -14,11 +14,13 @@ const dbOrders          = firebase.database().ref('cafe_orders');
 const dbMenu            = firebase.database().ref('cafe_menu');
 const dbDaily           = firebase.database().ref('cafe_daily');
 const dbCustomModifiers = firebase.database().ref('cafe_custom_modifiers');
+const dbSettings        = firebase.database().ref('cafe_settings');
 
 // ── State ──
 let tables          = {};
 let menuItems       = {};
 let customModifiers = [];   // string[]
+let tablePresets    = ['桌1','桌2','桌3','桌4','桌5','吧台','戶外A','外帶'];
 let activeTableId   = null;
 let showPaidTables  = false;
 
@@ -50,6 +52,10 @@ firebase.auth().onAuthStateChanged(user => {
         customModifiers = snap.val() || [];
         renderVoiceKeywordTags();
       });
+      dbSettings.child('tablePresets').on('value', snap => {
+        if (snap.val()) tablePresets = snap.val();
+        renderTablePresets();
+      });
     }
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
@@ -58,6 +64,7 @@ firebase.auth().onAuthStateChanged(user => {
       dbOrders.off();
       dbMenu.off();
       dbCustomModifiers.off();
+      dbSettings.off();
       tables = {}; menuItems = {}; customModifiers = [];
     }
   }
@@ -823,14 +830,78 @@ function openAddTableModal() {
 function closeAddTableModal() {
   document.getElementById('addTableModal').classList.remove('open');
   document.getElementById('inputTableName').value = '';
+  if (_presetEditMode) { _presetEditMode = false; renderTablePresets(); }
 }
 document.getElementById('addTableModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddTableModal(); });
 document.getElementById('btnCloseAddModal').addEventListener('click', closeAddTableModal);
 document.getElementById('btnHeaderAdd').addEventListener('click', openAddTableModal);
 document.getElementById('btnAddTable').addEventListener('click', addTable);
 document.getElementById('inputTableName').addEventListener('keydown', e => { if (e.key === 'Enter') addTable(); });
-document.querySelectorAll('.table-preset').forEach(chip => {
-  chip.addEventListener('click', () => { document.getElementById('inputTableName').value = chip.dataset.name; });
+
+let _presetEditMode = false;
+
+function renderTablePresets() {
+  const container = document.getElementById('presetChips');
+  const editBtn   = document.getElementById('btnEditPresets');
+  container.innerHTML = '';
+
+  if (_presetEditMode) {
+    editBtn.innerHTML = '<span class="material-symbols-outlined">check</span>';
+    editBtn.title = '完成編輯';
+
+    tablePresets.forEach((name, idx) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip chip-editable';
+      chip.innerHTML = `${name}<button class="chip-del" data-idx="${idx}" title="刪除">×</button>`;
+      container.appendChild(chip);
+    });
+
+    const addRow = document.createElement('div');
+    addRow.className = 'preset-add-row';
+    addRow.innerHTML = `<input class="preset-add-input" id="inputNewPreset" placeholder="新增名稱" maxlength="10" autocomplete="off"><button class="btn-preset-add" id="btnAddPreset"><span class="material-symbols-outlined">add</span></button>`;
+    container.appendChild(addRow);
+
+    container.querySelectorAll('.chip-del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        tablePresets.splice(Number(btn.dataset.idx), 1);
+        savePresets();
+      });
+    });
+
+    document.getElementById('btnAddPreset').addEventListener('click', addPreset);
+    document.getElementById('inputNewPreset').addEventListener('keydown', e => { if (e.key === 'Enter') addPreset(); });
+  } else {
+    editBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+    editBtn.title = '編輯快速選擇';
+
+    tablePresets.forEach(name => {
+      const chip = document.createElement('button');
+      chip.className = 'chip table-preset';
+      chip.textContent = name;
+      chip.addEventListener('click', () => { document.getElementById('inputTableName').value = name; });
+      container.appendChild(chip);
+    });
+  }
+}
+
+function addPreset() {
+  const input = document.getElementById('inputNewPreset');
+  const val = input.value.trim();
+  if (!val || tablePresets.includes(val)) { input.focus(); return; }
+  tablePresets.push(val);
+  savePresets();
+  input.value = '';
+  input.focus();
+}
+
+function savePresets() {
+  dbSettings.child('tablePresets').set(tablePresets);
+}
+
+document.getElementById('btnEditPresets').addEventListener('click', () => {
+  _presetEditMode = !_presetEditMode;
+  renderTablePresets();
 });
 
 function addTable() {
