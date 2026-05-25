@@ -1382,7 +1382,7 @@ body {
   .add-item-inputs { flex-wrap: wrap; }
   .input-name { flex: 1 1 100%; }
   .menu-add-row { flex-direction: column; }
-  .btn-primary-sm { width: 100%; height: 40px; border-radius: var(--radius-xs); }
+  .menu-add-row .btn-primary-sm { width: 100%; height: 40px; border-radius: var(--radius-xs); }
 }
 
 /* ══════════════════════════════════════════
