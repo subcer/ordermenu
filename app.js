@@ -504,6 +504,22 @@ function extractModifiers(text) {
   return found.join('、');
 }
 
+// 模糊比對：計算語音文字與選項的中文字元重疊率，≥50% 視為匹配
+function fuzzyMatchOption(text, choices) {
+  if (!text.trim() || !choices.length) return null;
+  const cjk = s => [...s].filter(c => c >= '一' && c <= '鿿');
+  const textChars = new Set(cjk(text));
+  if (textChars.size === 0) return null;
+  let best = null, bestScore = 0;
+  for (const choice of choices) {
+    const cc = cjk(choice);
+    if (!cc.length) continue;
+    const score = cc.filter(c => textChars.has(c)).length / cc.length;
+    if (score > bestScore && score >= 0.5) { bestScore = score; best = choice; }
+  }
+  return best;
+}
+
 let recognition      = null;
 let voiceParsedItems = [];
 
@@ -578,7 +594,7 @@ function parseVoiceText(rawText) {
       if (idx === -1) break;
       const end = idx + menuItem.name.length;
       if (!taken.slice(idx, end).some(Boolean)) {
-        found.push({ name: menuItem.name, price: menuItem.price || 0, start: idx, end });
+        found.push({ name: menuItem.name, price: menuItem.price || 0, options: menuItem.options || [], start: idx, end });
         for (let k = idx; k < end; k++) taken[k] = true;
       }
       from = end;
@@ -608,8 +624,16 @@ function parseVoiceText(rawText) {
     if (numBefore !== null && numBefore > 0) qty = numBefore;
     else if (numAfter !== null && numAfter > 0) qty = numAfter;
 
-    // 備註：只保留已知修飾詞
-    const note = extractModifiers(lookBefore + lookAfter);
+    // 備註：有選項先模糊比對選項，其餘用修飾詞
+    const surroundText = lookBefore + lookAfter;
+    const optGroups = (item.options || []).filter(g => g.choices?.length > 0);
+    let note = '';
+    if (optGroups.length > 0) {
+      const matched = optGroups.map(grp => fuzzyMatchOption(surroundText, grp.choices)).filter(Boolean);
+      note = matched.length > 0 ? matched.join('、') : extractModifiers(surroundText);
+    } else {
+      note = extractModifiers(surroundText);
+    }
 
     results.push({ name: item.name, qty, note, price: item.price });
   }
