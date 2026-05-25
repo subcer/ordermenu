@@ -53,7 +53,8 @@ firebase.auth().onAuthStateChanged(user => {
         renderVoiceKeywordTags();
       });
       dbSettings.child('tablePresets').on('value', snap => {
-        if (snap.val()) tablePresets = snap.val();
+        const val = snap.val();
+        if (val) tablePresets = Array.isArray(val) ? val : Object.values(val);
         renderTablePresets();
       });
     }
@@ -826,6 +827,7 @@ document.getElementById('btnCloseModal').addEventListener('click', closeTableMod
 function openAddTableModal() {
   document.getElementById('addTableModal').classList.add('open');
   document.getElementById('inputTableName').focus();
+  renderTablePresets();
 }
 function closeAddTableModal() {
   document.getElementById('addTableModal').classList.remove('open');
@@ -843,6 +845,7 @@ let _presetEditMode = false;
 function renderTablePresets() {
   const container = document.getElementById('presetChips');
   const editBtn   = document.getElementById('btnEditPresets');
+  if (!container || !editBtn) return;
   container.innerHTML = '';
 
   if (_presetEditMode) {
