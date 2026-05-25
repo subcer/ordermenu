@@ -21,8 +21,39 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 </head>
 <body>
+
+  <!-- ══════════════════════════════════════
+       Login Screen
+  ══════════════════════════════════════ -->
+  <div id="loginScreen" class="login-overlay">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-icon">
+          <span class="material-symbols-outlined">restaurant</span>
+        </div>
+        <div>
+          <p class="login-title">點餐管理</p>
+          <p class="login-sub">餐桌管理系統</p>
+        </div>
+      </div>
+      <div class="login-field">
+        <label class="form-label-sm">電子郵件</label>
+        <input type="email" id="inputEmail" class="input-field" placeholder="cafe@example.com" autocomplete="username">
+      </div>
+      <div class="login-field">
+        <label class="form-label-sm">密碼</label>
+        <input type="password" id="inputPassword" class="input-field" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <p class="login-error" id="loginError"></p>
+      <button class="btn-primary-lg" id="btnLogin">
+        <span class="material-symbols-outlined">login</span>
+        登入
+      </button>
+    </div>
+  </div>
 
   <!-- ══════════════════════════════════════
        Header
@@ -38,6 +69,10 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn-header-action" id="btnLogout" title="登出">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="btn-action-label">登出</span>
+      </button>
       <button class="btn-header-action" id="btnOpenReport" title="營業報表">
         <span class="material-symbols-outlined">bar_chart</span>
         <span class="btn-action-label">報表</span>
