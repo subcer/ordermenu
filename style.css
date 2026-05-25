@@ -998,13 +998,20 @@ body {
 /* ══════════════════════════════════════════
    Option Picker Modal
 ══════════════════════════════════════════ */
+#optionPickerModal {
+  align-items: center;
+}
 .option-picker-modal {
   width: min(92vw, 400px);
   padding: 0;
   overflow: hidden;
+  border-radius: var(--radius);
+}
+.option-picker-modal .modal-header {
+  padding: 24px 24px 0;
 }
 .option-picker-content {
-  padding: 16px 20px 8px;
+  padding: 16px 24px 8px;
   max-height: 60vh;
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 20px;
@@ -1040,7 +1047,7 @@ body {
 }
 .option-picker-actions {
   display: flex; gap: 10px;
-  padding: 14px 20px;
+  padding: 14px 24px 20px;
   border-top: 1px solid var(--border-faint);
 }
 
