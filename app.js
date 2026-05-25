@@ -1,5 +1,13 @@
 // ── Firebase ──
-const firebaseConfig = { databaseURL: "https://cafeorder-29fe5-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+const firebaseConfig = {
+  apiKey: "AIzaSyAWfQ5IJq68vzfkDbQVboztztqd08BtU9U",
+  authDomain: "cafeorder-29fe5.firebaseapp.com",
+  databaseURL: "https://cafeorder-29fe5-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cafeorder-29fe5",
+  storageBucket: "cafeorder-29fe5.firebasestorage.app",
+  messagingSenderId: "763706100001",
+  appId: "1:763706100001:web:56c96f73ec3a21fcd59660"
+};
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
 const dbOrders          = firebase.database().ref('cafe_orders');
