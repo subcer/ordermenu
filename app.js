@@ -646,8 +646,8 @@ function parseVoiceText(rawText) {
   const found = []; // { name, price, start, end }
 
   for (const menuItem of sortedMenu) {
-    const searchTerms = [menuItem.name];
-    if (menuItem.voiceAlias) searchTerms.push(menuItem.voiceAlias);
+    const aliases = menuItem.voiceAliases || (menuItem.voiceAlias ? [menuItem.voiceAlias] : []);
+    const searchTerms = [menuItem.name, ...aliases];
     for (const term of searchTerms) {
       let from = 0;
       while (from < rawText.length) {
@@ -668,7 +668,8 @@ function parseVoiceText(rawText) {
     const textCjkSet = new Set(cjkChars(rawText));
     let bestMatch = null, bestScore = 0;
     for (const menuItem of sortedMenu) {
-      const terms = [menuItem.name, menuItem.voiceAlias].filter(Boolean);
+      const aliases2 = menuItem.voiceAliases || (menuItem.voiceAlias ? [menuItem.voiceAlias] : []);
+      const terms = [menuItem.name, ...aliases2];
       for (const term of terms) {
         const ic = cjkChars(term);
         if (ic.length < 2) continue;
@@ -1090,7 +1091,7 @@ function startEditMenuItem(id) {
       <input class="menu-edit-price" id="editPrice-${id}" type="number" value="${item.price || ''}" placeholder="定價">
       <input class="menu-edit-cat-input" id="editCat-${id}" value="${item.category || ''}" placeholder="分類" list="${editListId}" autocomplete="off">
       ${datalistHtml}
-      <input class="menu-edit-input menu-edit-alias" id="editAlias-${id}" value="${item.voiceAlias || ''}" placeholder="語音別名（選填，語音常念錯時填，如：和服紗）">
+      <input class="menu-edit-input menu-edit-alias" id="editAlias-${id}" value="${(item.voiceAliases || item.voiceAlias ? (item.voiceAliases || [item.voiceAlias]).join('、') : '')}" placeholder="語音別名（可多個，用逗號分隔，如：和服紗、河芙莎）">
     </div>
     <div class="edit-options-section" id="editOptions-${id}"></div>
     <div class="menu-edit-btns">
@@ -1165,10 +1166,11 @@ function saveEditMenuItem(id) {
   const name  = document.getElementById(`editName-${id}`)?.value.trim();
   const price = parseFloat(document.getElementById(`editPrice-${id}`)?.value) || 0;
   const cat   = document.getElementById(`editCat-${id}`)?.value.trim() || '其他';
-  const alias = document.getElementById(`editAlias-${id}`)?.value.trim() || null;
+  const aliasRaw = document.getElementById(`editAlias-${id}`)?.value.trim() || '';
+  const voiceAliases = aliasRaw ? aliasRaw.split(/[,，、]+/).map(s => s.trim()).filter(Boolean) : null;
   if (!name) return;
   const options = _editingOptions.filter(g => g.label || g.choices.length > 0);
-  dbMenu.child(id).update({ name, price, category: cat, options, voiceAlias: alias });
+  dbMenu.child(id).update({ name, price, category: cat, options, voiceAliases });
   showToast(`已更新「${name}」`);
 }
 
