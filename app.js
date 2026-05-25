@@ -107,6 +107,47 @@ function calcTotal(table) {
   }, 0);
 }
 
+// ── Table Timers ──
+const _alertedTables = new Set();
+
+function elapsedMinutes(seatedAt) {
+  if (!seatedAt) return null;
+  return Math.floor((Date.now() - seatedAt) / 60000);
+}
+
+function formatElapsed(minutes) {
+  if (minutes === null) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h${String(m).padStart(2,'0')}m` : `${m}m`;
+}
+
+function showTimerAlert(tableName) {
+  showConfirm({
+    title: '用餐時間提醒',
+    message: `${tableName} 已用餐超過 2 小時，請注意桌況。`,
+    danger: false,
+    okLabel: '知道了',
+    icon: 'alarm'
+  }, () => {});
+}
+
+function checkTableTimers() {
+  Object.entries(tables).forEach(([id, table]) => {
+    if (!table.seatedAt || table.status === 'paid' || table.status === 'empty') return;
+    const mins = elapsedMinutes(table.seatedAt);
+    if (mins >= 120 && !_alertedTables.has(id)) {
+      _alertedTables.add(id);
+      showTimerAlert(table.name);
+    }
+  });
+}
+
+setInterval(() => {
+  renderTables();
+  checkTableTimers();
+}, 60000);
+
 function renderStats() {
   const all = Object.values(tables);
   document.getElementById('statTotal').textContent    = all.length;
@@ -207,6 +248,11 @@ function buildTableCard(id, table) {
         </div>`;
       }).join('');
 
+  const mins = elapsedMinutes(table.seatedAt);
+  const timerHtml = (mins !== null && table.status !== 'empty' && table.status !== 'paid')
+    ? `<span class="tc-timer${mins >= 120 ? ' tc-timer-danger' : mins >= 90 ? ' tc-timer-warn' : ''}">${formatElapsed(mins)}</span>`
+    : '';
+
   card.innerHTML = `
     <div class="tc-header">
       <div>
@@ -221,7 +267,10 @@ function buildTableCard(id, table) {
         <span class="tc-total-label">小計</span>
         <span class="tc-total-amount">${total > 0 ? '$' + total : '—'}</span>
       </div>
-      ${items.length > 0 ? `<span class="tc-progress">✓ ${doneCount}/${items.length}</span>` : ''}
+      <div class="tc-footer-right">
+        ${items.length > 0 ? `<span class="tc-progress">✓ ${doneCount}/${items.length}</span>` : ''}
+        ${timerHtml}
+      </div>
     </div>
   `;
   return card;
@@ -334,7 +383,7 @@ function addItem() {
 
   const itemId = 'item_' + Date.now();
   table.items[itemId] = { name, qty, note, done: false, price };
-  if (table.status === 'empty') table.status = 'ordering';
+  if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
 
   dbOrders.child(activeTableId).set(table);
 
@@ -455,7 +504,7 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
     name: item.name, qty: 1, price: item.price || 0,
     note: chosen.join('、'), done: false
   };
-  if (table.status === 'empty') table.status = 'ordering';
+  if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   dbOrders.child(activeTableId).set(table);
   showToast(`已加入「${item.name}」${chosen.length ? '（' + chosen.join('、') + '）' : ''}`);
   closeOptionPicker();
@@ -711,7 +760,7 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
     table.items[itemId] = { name: item.name, qty: item.qty, note: item.note, done: false, price: item.price };
   });
 
-  if (table.status === 'empty') table.status = 'ordering';
+  if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
 
   dbOrders.child(activeTableId).set(table);
   showToast(`已加入 ${voiceParsedItems.length} 項品項`);
@@ -737,6 +786,7 @@ document.getElementById('btnMarkPaid').addEventListener('click', () => {
   table.status   = 'paid';
   table.paidAt   = Date.now();
   table.paidTotal = total;
+  _alertedTables.delete(activeTableId);
   dbOrders.child(activeTableId).set(table);
   showToast(`已結帳！${total > 0 ? ' 共 $' + total : ''}`);
   closeTableModal();

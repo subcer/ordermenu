@@ -300,7 +300,12 @@ body {
 }
 .tc-total-wrap .tc-total-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); display: block; }
 .tc-total-amount { font-family: 'Manrope', sans-serif; font-size: 1rem; font-weight: 800; color: var(--primary); }
+.tc-footer-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .tc-progress { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
+.tc-timer { font-family: 'Manrope', sans-serif; font-size: 0.65rem; font-weight: 700; color: var(--text-muted); background: var(--surface-low); padding: 2px 6px; border-radius: 999px; }
+.tc-timer.tc-timer-warn { color: #7c4a00; background: var(--orange-light); }
+.tc-timer.tc-timer-danger { color: var(--red); background: var(--red-light); animation: pulse-timer 1.5s ease-in-out infinite; }
+@keyframes pulse-timer { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
 /* Add Table Card */
 .add-table-card {
