@@ -646,16 +646,20 @@ function parseVoiceText(rawText) {
   const found = []; // { name, price, start, end }
 
   for (const menuItem of sortedMenu) {
-    let from = 0;
-    while (from < rawText.length) {
-      const idx = rawText.indexOf(menuItem.name, from);
-      if (idx === -1) break;
-      const end = idx + menuItem.name.length;
-      if (!taken.slice(idx, end).some(Boolean)) {
-        found.push({ name: menuItem.name, price: menuItem.price || 0, options: menuItem.options || [], start: idx, end });
-        for (let k = idx; k < end; k++) taken[k] = true;
+    const searchTerms = [menuItem.name];
+    if (menuItem.voiceAlias) searchTerms.push(menuItem.voiceAlias);
+    for (const term of searchTerms) {
+      let from = 0;
+      while (from < rawText.length) {
+        const idx = rawText.indexOf(term, from);
+        if (idx === -1) break;
+        const end = idx + term.length;
+        if (!taken.slice(idx, end).some(Boolean)) {
+          found.push({ name: menuItem.name, price: menuItem.price || 0, options: menuItem.options || [], start: idx, end });
+          for (let k = idx; k < end; k++) taken[k] = true;
+        }
+        from = end;
       }
-      from = end;
     }
   }
 
@@ -664,10 +668,13 @@ function parseVoiceText(rawText) {
     const textCjkSet = new Set(cjkChars(rawText));
     let bestMatch = null, bestScore = 0;
     for (const menuItem of sortedMenu) {
-      const ic = cjkChars(menuItem.name);
-      if (ic.length < 2) continue;
-      const score = ic.filter(c => textCjkSet.has(c)).length / ic.length;
-      if (score > bestScore && score >= 0.55) { bestScore = score; bestMatch = menuItem; }
+      const terms = [menuItem.name, menuItem.voiceAlias].filter(Boolean);
+      for (const term of terms) {
+        const ic = cjkChars(term);
+        if (ic.length < 2) continue;
+        const score = ic.filter(c => textCjkSet.has(c)).length / ic.length;
+        if (score > bestScore && score >= 0.55) { bestScore = score; bestMatch = menuItem; }
+      }
     }
     if (!bestMatch) return results;
     // start=0, end=0 讓整段 rawText 進入 lookAfter，供數量與修飾詞解析
@@ -1083,6 +1090,7 @@ function startEditMenuItem(id) {
       <input class="menu-edit-price" id="editPrice-${id}" type="number" value="${item.price || ''}" placeholder="定價">
       <input class="menu-edit-cat-input" id="editCat-${id}" value="${item.category || ''}" placeholder="分類" list="${editListId}" autocomplete="off">
       ${datalistHtml}
+      <input class="menu-edit-input menu-edit-alias" id="editAlias-${id}" value="${item.voiceAlias || ''}" placeholder="語音別名（選填，語音常念錯時填，如：和服紗）">
     </div>
     <div class="edit-options-section" id="editOptions-${id}"></div>
     <div class="menu-edit-btns">
@@ -1157,9 +1165,10 @@ function saveEditMenuItem(id) {
   const name  = document.getElementById(`editName-${id}`)?.value.trim();
   const price = parseFloat(document.getElementById(`editPrice-${id}`)?.value) || 0;
   const cat   = document.getElementById(`editCat-${id}`)?.value.trim() || '其他';
+  const alias = document.getElementById(`editAlias-${id}`)?.value.trim() || null;
   if (!name) return;
   const options = _editingOptions.filter(g => g.label || g.choices.length > 0);
-  dbMenu.child(id).update({ name, price, category: cat, options });
+  dbMenu.child(id).update({ name, price, category: cat, options, voiceAlias: alias });
   showToast(`已更新「${name}」`);
 }
 

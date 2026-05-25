@@ -875,6 +875,8 @@ body {
   outline: none; transition: border-color 0.15s;
 }
 .menu-edit-cat-input:focus { border-color: var(--primary); }
+.menu-edit-alias { font-size: 0.8rem; color: var(--text-sub); border-style: dashed; }
+.menu-edit-alias::placeholder { color: var(--text-muted); }
 .menu-edit-btns {
   display: flex; gap: 8px; align-items: center;
 }
