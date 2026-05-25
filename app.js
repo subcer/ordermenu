@@ -1,5 +1,5 @@
 // ── Firebase ──
-const firebaseConfig = { databaseURL: "https://fir-60db1.firebaseio.com/" };
+const firebaseConfig = { databaseURL: "https://cafeorder-29fe5-default-rtdb.asia-southeast1.firebasedatabase.app/" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
 const dbOrders          = firebase.database().ref('cafe_orders');
