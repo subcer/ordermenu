@@ -301,27 +301,48 @@ function renderMenuPicker() {
     return;
   }
 
-  picker.innerHTML = '';
+  const groups = {};
   sorted.forEach(([, item]) => {
-    const chip = document.createElement('button');
-    chip.className = 'menu-pick-chip';
-    const hasOpts = (item.options || []).some(g => g.choices?.length > 0);
-    chip.innerHTML = `
-      <span class="mpc-name">${item.name}</span>
-      ${hasOpts ? '<span class="mpc-options-dot" title="有必選選項"></span>' : ''}
-      <span class="mpc-price">${item.price > 0 ? '$' + item.price : '—'}</span>
-    `;
-    chip.addEventListener('click', () => {
-      const opts = (item.options || []).filter(g => g.choices?.length > 0);
-      if (opts.length > 0) {
-        openOptionPicker(item, opts);
-      } else {
-        document.getElementById('inputItemName').value  = item.name;
-        document.getElementById('inputItemPrice').value = item.price || '';
-        document.getElementById('inputItemName').focus();
-      }
+    const cat = item.category || '其他';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  });
+
+  picker.innerHTML = '';
+  Object.entries(groups).forEach(([cat, items]) => {
+    const group = document.createElement('div');
+    group.className = 'mpc-category-group';
+
+    const label = document.createElement('span');
+    label.className = 'mpc-category-label';
+    label.textContent = cat;
+    group.appendChild(label);
+
+    const row = document.createElement('div');
+    row.className = 'mpc-chips';
+    items.forEach(item => {
+      const chip = document.createElement('button');
+      chip.className = 'menu-pick-chip';
+      const hasOpts = (item.options || []).some(g => g.choices?.length > 0);
+      chip.innerHTML = `
+        <span class="mpc-name">${item.name}</span>
+        ${hasOpts ? '<span class="mpc-options-dot" title="有必選選項"></span>' : ''}
+        <span class="mpc-price">${item.price > 0 ? '$' + item.price : '—'}</span>
+      `;
+      chip.addEventListener('click', () => {
+        const opts = (item.options || []).filter(g => g.choices?.length > 0);
+        if (opts.length > 0) {
+          openOptionPicker(item, opts);
+        } else {
+          document.getElementById('inputItemName').value  = item.name;
+          document.getElementById('inputItemPrice').value = item.price || '';
+          document.getElementById('inputItemName').focus();
+        }
+      });
+      row.appendChild(chip);
     });
-    picker.appendChild(chip);
+    group.appendChild(row);
+    picker.appendChild(group);
   });
 }
 
