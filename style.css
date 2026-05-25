@@ -121,6 +121,8 @@ body {
 .btn-header-action .material-symbols-outlined { font-size: 1rem; }
 .btn-action-label { display: none; }
 @media (min-width: 480px) { .btn-action-label { display: inline; } }
+.btn-add-label { display: none; }
+@media (min-width: 480px) { .btn-add-label { display: inline; } }
 
 .btn-header-add {
   display: flex; align-items: center; gap: 4px;
@@ -1328,6 +1330,10 @@ body {
    Responsive
 ══════════════════════════════════════════ */
 @media (max-width: 420px) {
+  .app-header { padding: 10px 12px; gap: 6px; }
+  .header-actions { gap: 4px; }
+  .btn-header-action { padding: 7px 8px; }
+  .btn-header-add { padding: 8px 10px; }
   .tables-grid { grid-template-columns: repeat(2, 1fr); }
   .modal { padding: 18px 14px 28px; }
   .modal-actions { flex-direction: column; }
