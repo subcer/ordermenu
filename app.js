@@ -562,14 +562,15 @@ function extractModifiers(text) {
 }
 
 // 模糊比對：計算語音文字與選項的中文字元重疊率，≥50% 視為匹配
+const cjkChars = s => [...s].filter(c => c >= '一' && c <= '鿿');
+
 function fuzzyMatchOption(text, choices) {
   if (!text.trim() || !choices.length) return null;
-  const cjk = s => [...s].filter(c => c >= '一' && c <= '鿿');
-  const textChars = new Set(cjk(text));
+  const textChars = new Set(cjkChars(text));
   if (textChars.size === 0) return null;
   let best = null, bestScore = 0;
   for (const choice of choices) {
-    const cc = cjk(choice);
+    const cc = cjkChars(choice);
     if (!cc.length) continue;
     const score = cc.filter(c => textChars.has(c)).length / cc.length;
     if (score > bestScore && score >= 0.5) { bestScore = score; best = choice; }
@@ -658,7 +659,20 @@ function parseVoiceText(rawText) {
     }
   }
 
-  if (found.length === 0) return results;
+  // Step 1b：完全匹配失敗 → 模糊比對品名（CJK 字元重疊率 ≥ 0.55）
+  if (found.length === 0) {
+    const textCjkSet = new Set(cjkChars(rawText));
+    let bestMatch = null, bestScore = 0;
+    for (const menuItem of sortedMenu) {
+      const ic = cjkChars(menuItem.name);
+      if (ic.length < 2) continue;
+      const score = ic.filter(c => textCjkSet.has(c)).length / ic.length;
+      if (score > bestScore && score >= 0.55) { bestScore = score; bestMatch = menuItem; }
+    }
+    if (!bestMatch) return results;
+    // start=0, end=0 讓整段 rawText 進入 lookAfter，供數量與修飾詞解析
+    found.push({ name: bestMatch.name, price: bestMatch.price || 0, options: bestMatch.options || [], start: 0, end: 0 });
+  }
 
   // Step 2：依出現位置排序
   found.sort((a, b) => a.start - b.start);
