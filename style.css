@@ -1004,17 +1004,18 @@ body {
   overflow: hidden;
 }
 .option-picker-content {
-  padding: 8px 20px 4px;
+  padding: 16px 20px 8px;
   max-height: 60vh;
   overflow-y: auto;
-  display: flex; flex-direction: column; gap: 18px;
+  display: flex; flex-direction: column; gap: 20px;
 }
-.option-picker-group { display: flex; flex-direction: column; gap: 8px; }
+.option-picker-group { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .option-picker-group-label {
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-muted);
+  text-align: center;
 }
-.option-picker-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.option-picker-choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .option-picker-choice { position: relative; }
 .option-picker-choice input[type="radio"] {
   position: absolute; opacity: 0; width: 0; height: 0;
