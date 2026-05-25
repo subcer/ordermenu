@@ -1141,25 +1141,91 @@ document.getElementById('reportModal').addEventListener('click', e => {
 });
 document.getElementById('btnWeekly').addEventListener('click', () => setReportMode('weekly'));
 document.getElementById('btnMonthly').addEventListener('click', () => setReportMode('monthly'));
+document.getElementById('btnCustomRange').addEventListener('click', () => setReportMode('custom'));
+document.getElementById('btnApplyDateRange').addEventListener('click', loadAndRenderReport);
 
 function setReportMode(mode) {
   _reportMode = mode;
   document.getElementById('btnWeekly').classList.toggle('active', mode === 'weekly');
   document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
-  loadAndRenderReport();
+  document.getElementById('btnCustomRange').classList.toggle('active', mode === 'custom');
+  document.getElementById('reportDateRange').style.display = mode === 'custom' ? 'flex' : 'none';
+  if (mode !== 'custom') loadAndRenderReport();
 }
 
 function openReport() {
   document.getElementById('reportModal').classList.add('open');
+  // 預設日期：本月第一天到今天
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  document.getElementById('inputDateStart').value = toDateStr(firstDay);
+  document.getElementById('inputDateEnd').value   = toDateStr(today);
   loadAndRenderReport();
 }
 
 function loadAndRenderReport() {
+  if (_reportMode === 'custom') {
+    const start = document.getElementById('inputDateStart').value;
+    const end   = document.getElementById('inputDateEnd').value;
+    if (!start || !end || start > end) {
+      showToast('請選擇有效的日期區間');
+      return;
+    }
+    dbDaily.orderByKey().startAt(start).endAt(end).once('value', snap => {
+      renderCustomReport(Object.values(snap.val() || {}), start, end);
+    });
+    return;
+  }
   dbDaily.orderByKey().limitToLast(62).once('value', snap => {
     const records = Object.values(snap.val() || {});
     if (_reportMode === 'weekly') renderWeeklyReport(records);
     else renderMonthlyReport(records);
   });
+}
+
+function renderCustomReport(records, startStr, endStr) {
+  const start    = new Date(startStr + 'T00:00:00');
+  const end      = new Date(endStr   + 'T00:00:00');
+  const diffDays = Math.round((end - start) / 86400000) + 1;
+  const labels = [], revenues = [];
+  let tableCount = 0;
+
+  if (diffDays <= 35) {
+    for (let i = 0; i < diffDays; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const rec = records.find(r => r.date === toDateStr(d));
+      labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+      revenues.push(rec ? rec.revenue : 0);
+      if (rec) tableCount += rec.tableCount;
+    }
+  } else {
+    const weeks = Math.ceil(diffDays / 7);
+    for (let w = 0; w < weeks; w++) {
+      let weekRev = 0, weekTables = 0;
+      for (let d = 0; d < 7; d++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + w * 7 + d);
+        if (date > end) break;
+        const rec = records.find(r => r.date === toDateStr(date));
+        if (rec) { weekRev += rec.revenue; weekTables += rec.tableCount; }
+      }
+      const ws = new Date(start);
+      ws.setDate(start.getDate() + w * 7);
+      labels.push(`${ws.getMonth()+1}/${ws.getDate()}`);
+      revenues.push(weekRev);
+      tableCount += weekTables;
+    }
+  }
+
+  const total      = revenues.reduce((s, r) => s + r, 0);
+  const activeDays = revenues.filter(r => r > 0).length;
+  const dailyAvg   = activeDays > 0 ? Math.round(total / activeDays) : 0;
+
+  document.getElementById('reportPeriodLabel').textContent = `${startStr} ～ ${endStr}`;
+  updateReportSummary(total, 0, tableCount, dailyAvg);
+  document.getElementById('reportChange').textContent = '';
+  drawChart(labels, revenues);
 }
 
 function toDateStr(d) {

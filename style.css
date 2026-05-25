@@ -1304,6 +1304,21 @@ body {
   color: var(--text);
 }
 
+.report-date-range {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.report-date-input {
+  flex: 1; min-width: 120px;
+  font-size: 0.85rem;
+}
+.report-date-sep {
+  font-size: 0.9rem; color: var(--text-muted); flex-shrink: 0;
+}
+
 .report-chart-wrap {
   position: relative;
   padding: 8px 0 4px;
