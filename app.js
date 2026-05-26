@@ -1352,9 +1352,9 @@ function setReportMode(mode) {
   document.getElementById('btnRanking').classList.toggle('active', mode === 'ranking');
   document.getElementById('reportDateRange').style.display = mode === 'custom' ? 'flex' : 'none';
   const isRanking = mode === 'ranking';
-  document.getElementById('rankingWrap').style.display   = isRanking ? 'block' : 'none';
-  document.getElementById('report-summary') && (document.querySelector('.report-summary').style.display = isRanking ? 'none' : '');
-  document.querySelector('.report-chart-wrap').style.display = isRanking ? 'none' : '';
+  document.getElementById('rankingWrap').style.display        = isRanking ? 'block' : 'none';
+  document.querySelector('.report-summary').style.display     = isRanking ? 'none'  : '';
+  document.querySelector('.report-chart-wrap').style.display  = isRanking ? 'none'  : '';
   if (mode !== 'custom') loadAndRenderReport();
 }
 
