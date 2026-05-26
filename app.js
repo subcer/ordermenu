@@ -1203,12 +1203,23 @@ function doSettlement() {
   const dateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const revenue = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
 
+  const itemSales = {};
+  paidToday.forEach(([, t]) => {
+    Object.values(t.items || {}).forEach(item => {
+      if (!item.name) return;
+      if (!itemSales[item.name]) itemSales[item.name] = { qty: 0, revenue: 0 };
+      itemSales[item.name].qty     += (Number(item.qty)   || 1);
+      itemSales[item.name].revenue += (Number(item.price) || 0) * (Number(item.qty) || 1);
+    });
+  });
+
   const record = {
     date: dateKey,
     settledAt: Date.now(),
     tableCount: paidToday.length,
     revenue,
-    tables: paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) }))
+    tables: paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) })),
+    itemSales
   };
 
   dbDaily.child(dateKey).set(record)
@@ -1316,14 +1327,34 @@ document.getElementById('reportModal').addEventListener('click', e => {
 document.getElementById('btnWeekly').addEventListener('click', () => setReportMode('weekly'));
 document.getElementById('btnMonthly').addEventListener('click', () => setReportMode('monthly'));
 document.getElementById('btnCustomRange').addEventListener('click', () => setReportMode('custom'));
+document.getElementById('btnRanking').addEventListener('click', () => setReportMode('ranking'));
 document.getElementById('btnApplyDateRange').addEventListener('click', loadAndRenderReport);
+
+let _rankingSortBy = 'qty';
+document.getElementById('btnSortQty').addEventListener('click', () => {
+  _rankingSortBy = 'qty';
+  document.getElementById('btnSortQty').classList.add('active');
+  document.getElementById('btnSortRev').classList.remove('active');
+  loadAndRenderReport();
+});
+document.getElementById('btnSortRev').addEventListener('click', () => {
+  _rankingSortBy = 'revenue';
+  document.getElementById('btnSortQty').classList.remove('active');
+  document.getElementById('btnSortRev').classList.add('active');
+  loadAndRenderReport();
+});
 
 function setReportMode(mode) {
   _reportMode = mode;
   document.getElementById('btnWeekly').classList.toggle('active', mode === 'weekly');
   document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
   document.getElementById('btnCustomRange').classList.toggle('active', mode === 'custom');
+  document.getElementById('btnRanking').classList.toggle('active', mode === 'ranking');
   document.getElementById('reportDateRange').style.display = mode === 'custom' ? 'flex' : 'none';
+  const isRanking = mode === 'ranking';
+  document.getElementById('rankingWrap').style.display   = isRanking ? 'block' : 'none';
+  document.getElementById('report-summary') && (document.querySelector('.report-summary').style.display = isRanking ? 'none' : '');
+  document.querySelector('.report-chart-wrap').style.display = isRanking ? 'none' : '';
   if (mode !== 'custom') loadAndRenderReport();
 }
 
@@ -1338,6 +1369,12 @@ function openReport() {
 }
 
 function loadAndRenderReport() {
+  if (_reportMode === 'ranking') {
+    dbDaily.orderByKey().limitToLast(90).once('value', snap => {
+      renderRankingReport(Object.values(snap.val() || {}));
+    });
+    return;
+  }
   if (_reportMode === 'custom') {
     const start = document.getElementById('inputDateStart').value;
     const end   = document.getElementById('inputDateEnd').value;
@@ -1355,6 +1392,36 @@ function loadAndRenderReport() {
     if (_reportMode === 'weekly') renderWeeklyReport(records);
     else renderMonthlyReport(records);
   });
+}
+
+function renderRankingReport(records) {
+  const totals = {};
+  records.forEach(rec => {
+    if (!rec.itemSales) return;
+    Object.entries(rec.itemSales).forEach(([name, data]) => {
+      if (!totals[name]) totals[name] = { qty: 0, revenue: 0 };
+      totals[name].qty     += data.qty     || 0;
+      totals[name].revenue += data.revenue || 0;
+    });
+  });
+
+  const list = document.getElementById('rankingList');
+  const sorted = Object.entries(totals).sort((a, b) => b[1][_rankingSortBy] - a[1][_rankingSortBy]);
+
+  if (sorted.length === 0) {
+    list.innerHTML = `<div class="ranking-empty">尚無資料，執行日結後即可累積排行</div>`;
+    return;
+  }
+
+  const medals = ['🥇','🥈','🥉'];
+  list.innerHTML = sorted.map(([name, data], i) => `
+    <div class="ranking-row">
+      <span class="ranking-pos">${medals[i] || (i + 1)}</span>
+      <span class="ranking-name">${name}</span>
+      <span class="ranking-qty">${data.qty} 杯</span>
+      <span class="ranking-rev">$${data.revenue}</span>
+    </div>
+  `).join('');
 }
 
 function renderCustomReport(records, startStr, endStr) {

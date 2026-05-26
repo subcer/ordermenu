@@ -531,6 +531,7 @@
         <button class="report-toggle-btn active" id="btnWeekly">週報</button>
         <button class="report-toggle-btn" id="btnMonthly">月報</button>
         <button class="report-toggle-btn" id="btnCustomRange">自訂</button>
+        <button class="report-toggle-btn" id="btnRanking">排行</button>
       </div>
 
       <div class="report-date-range" id="reportDateRange">
@@ -562,6 +563,15 @@
 
       <div class="report-chart-wrap">
         <canvas id="revenueChart"></canvas>
+      </div>
+
+      <div class="ranking-wrap" id="rankingWrap" style="display:none">
+        <div class="ranking-sort-row">
+          <span class="ranking-sort-label">排序</span>
+          <button class="ranking-sort-btn active" id="btnSortQty">杯數</button>
+          <button class="ranking-sort-btn" id="btnSortRev">營業額</button>
+        </div>
+        <div id="rankingList" class="ranking-list"></div>
       </div>
     </div>
   </div>
