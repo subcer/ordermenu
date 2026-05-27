@@ -1,16 +1,28 @@
 // ── Firebase ──
-const firebaseConfig = { databaseURL: "https://fir-60db1.firebaseio.com/" };
+const firebaseConfig = {
+  apiKey: "AIzaSyAWfQ5IJq68vzfkDbQVboztztqd08BtU9U",
+  authDomain: "cafeorder-29fe5.firebaseapp.com",
+  databaseURL: "https://cafeorder-29fe5-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cafeorder-29fe5",
+  storageBucket: "cafeorder-29fe5.firebasestorage.app",
+  messagingSenderId: "763706100001",
+  appId: "1:763706100001:web:56c96f73ec3a21fcd59660"
+};
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
 const dbOrders          = firebase.database().ref('cafe_orders');
 const dbMenu            = firebase.database().ref('cafe_menu');
 const dbDaily           = firebase.database().ref('cafe_daily');
 const dbCustomModifiers = firebase.database().ref('cafe_custom_modifiers');
+const dbSettings        = firebase.database().ref('cafe_settings');
+const dbWaitlist        = firebase.database().ref('cafe_waitlist');
 
 // ── State ──
 let tables          = {};
 let menuItems       = {};
-let customModifiers = [];   // string[]
+let customModifiers = [];
+let tablePresets    = ['桌1','桌2','桌3','桌4','桌5','吧台','戶外A','外帶'];
+let waitlist        = {};
 let activeTableId   = null;
 let showPaidTables  = false;
 
@@ -18,24 +30,83 @@ const STATUS       = { empty: '空桌', ordering: '點餐中', served: '已出�
 const STATUS_LABEL = { empty: '空桌', ordering: '點餐中', served: '已出餐', paid: '已結帳' };
 const STATUS_ORDER = ['empty', 'ordering', 'served', 'paid'];
 
-// ── Firebase Listeners ──
-dbOrders.on('value', snap => {
-  tables = snap.val() || {};
-  renderTables();
-  renderStats();
-  renderTodaySection();
-  if (activeTableId && tables[activeTableId]) updateModalContent(activeTableId);
+// ── Auth & Firebase Listeners ──
+let _listenersActive = false;
+
+firebase.auth().onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById('loginScreen').style.display = 'none';
+    if (!_listenersActive) {
+      _listenersActive = true;
+      dbOrders.on('value', snap => {
+        tables = snap.val() || {};
+        renderTables();
+        renderStats();
+        renderTodaySection();
+        if (activeTableId && tables[activeTableId]) updateModalContent(activeTableId);
+      });
+      dbMenu.on('value', snap => {
+        menuItems = snap.val() || {};
+        renderMenuPicker();
+        renderMenuItemsList();
+      });
+      dbCustomModifiers.on('value', snap => {
+        customModifiers = snap.val() || [];
+        renderVoiceKeywordTags();
+      });
+      dbSettings.child('tablePresets').on('value', snap => {
+        const val = snap.val();
+        if (val) tablePresets = Array.isArray(val) ? val : Object.values(val);
+        renderTablePresets();
+      });
+      dbWaitlist.on('value', snap => {
+        waitlist = snap.val() || {};
+        renderWaitlist();
+      });
+    }
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    if (_listenersActive) {
+      _listenersActive = false;
+      dbOrders.off();
+      dbMenu.off();
+      dbCustomModifiers.off();
+      dbSettings.off();
+      dbWaitlist.off();
+      tables = {}; menuItems = {}; customModifiers = {}; waitlist = {};
+    }
+  }
 });
 
-dbMenu.on('value', snap => {
-  menuItems = snap.val() || {};
-  renderMenuPicker();
-  renderMenuItemsList();
+// ── Login / Logout ──
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('inputPassword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
 });
 
-dbCustomModifiers.on('value', snap => {
-  customModifiers = snap.val() || [];
-  renderVoiceKeywordTags();
+async function doLogin() {
+  const email    = document.getElementById('inputEmail').value.trim();
+  const password = document.getElementById('inputPassword').value;
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('btnLogin');
+  if (!email || !password) { errEl.textContent = '請輸入帳號和密碼'; return; }
+  btn.disabled = true;
+  btn.textContent = '登入中…';
+  errEl.textContent = '';
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, password);
+    document.getElementById('inputPassword').value = '';
+  } catch {
+    errEl.textContent = '帳號或密碼錯誤，請再試一次';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined">login</span> 登入';
+  }
+}
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+  showConfirm({ title: '登出', message: '確定要登出嗎？', danger: false, okLabel: '登出', icon: 'logout' },
+    () => firebase.auth().signOut()
+  );
 });
 
 // ── Helpers ──
@@ -50,6 +121,152 @@ function calcTotal(table) {
     return sum + (Number(item.price) || 0) * (Number(item.qty) || 1);
   }, 0);
 }
+
+// ── Table Timers ──
+const _alertedTables = new Set();
+
+function elapsedMinutes(seatedAt) {
+  if (!seatedAt) return null;
+  return Math.floor((Date.now() - seatedAt) / 60000);
+}
+
+function formatElapsed(minutes) {
+  if (minutes === null) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h${String(m).padStart(2,'0')}m` : `${m}m`;
+}
+
+function showTimerAlert(tableName) {
+  showConfirm({
+    title: '用餐時間提醒',
+    message: `${tableName} 已用餐超過 2 小時，請注意桌況。`,
+    danger: false,
+    okLabel: '知道了',
+    icon: 'alarm'
+  }, () => {});
+}
+
+function checkTableTimers() {
+  Object.entries(tables).forEach(([id, table]) => {
+    if (!table.seatedAt || table.status === 'paid' || table.status === 'empty') return;
+    const mins = elapsedMinutes(table.seatedAt);
+    if (mins >= 120 && !_alertedTables.has(id)) {
+      _alertedTables.add(id);
+      showTimerAlert(table.name);
+    }
+  });
+}
+
+setInterval(() => {
+  renderTables();
+  checkTableTimers();
+  renderWaitlist(); // 更新等候時間
+}, 60000);
+
+// ── Waitlist ──
+function renderWaitlist() {
+  const entries = Object.entries(waitlist).sort((a, b) => a[1].addedAt - b[1].addedAt);
+  const waiting = entries.filter(([, e]) => e.status !== 'seated');
+  document.getElementById('waitlistCount').textContent = waiting.length;
+
+  const container = document.getElementById('waitlistEntries');
+  if (waiting.length === 0) {
+    container.innerHTML = '<p class="waitlist-empty">目前沒有候補</p>';
+    return;
+  }
+
+  container.innerHTML = '';
+  waiting.forEach(([id, entry], idx) => {
+    const mins = Math.floor((Date.now() - entry.addedAt) / 60000);
+    const waitStr = mins < 1 ? '剛剛' : mins < 60 ? `${mins} 分鐘` : `${Math.floor(mins/60)}h${String(mins%60).padStart(2,'0')}m`;
+    const isCalling = entry.status === 'calling';
+
+    const row = document.createElement('div');
+    row.className = `waitlist-entry${isCalling ? ' calling' : ''}`;
+    row.innerHTML = `
+      <span class="wl-pos">#${idx + 1}</span>
+      <div class="wl-info">
+        <span class="wl-name">${entry.name}</span>
+        ${entry.note ? `<span class="wl-note">${entry.note}</span>` : ''}
+      </div>
+      <span class="wl-size">${entry.partySize}人</span>
+      <span class="wl-time">${waitStr}</span>
+      <div class="wl-actions">
+        ${isCalling
+          ? `<span class="wl-calling-badge">叫號中</span>`
+          : `<button class="btn-wl-call" onclick="callParty('${id}')">叫號</button>`}
+        <button class="btn-wl-seat" onclick="seatParty('${id}')">入座</button>
+        <button class="btn-wl-remove" onclick="removeParty('${id}')" title="移除">✕</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function callParty(id) {
+  dbWaitlist.child(id).update({ status: 'calling' });
+  showToast(`已叫號「${waitlist[id]?.name}」`);
+}
+
+function seatParty(id) {
+  const name = waitlist[id]?.name;
+  showConfirm({
+    title: '確認入座',
+    message: `「${name}」已入座，從候補名單移除？`,
+    danger: false,
+    okLabel: '確認入座',
+    icon: 'check_circle'
+  }, () => {
+    dbWaitlist.child(id).remove();
+    showToast(`「${name}」已入座`);
+  });
+}
+
+function removeParty(id) {
+  const name = waitlist[id]?.name;
+  showConfirm({
+    title: '移除候補',
+    message: `確定要將「${name}」從候補名單移除？`,
+    danger: true,
+    okLabel: '移除',
+    icon: 'person_remove'
+  }, () => {
+    dbWaitlist.child(id).remove();
+    showToast(`已移除「${name}」`);
+  });
+}
+
+function openWaitlistModal() {
+  document.getElementById('waitlistModal').classList.add('open');
+  document.getElementById('inputWlName').focus();
+}
+
+function closeWaitlistModal() {
+  document.getElementById('waitlistModal').classList.remove('open');
+  document.getElementById('inputWlName').value  = '';
+  document.getElementById('inputWlSize').value  = '';
+  document.getElementById('inputWlNote').value  = '';
+}
+
+function addWaitlistEntry() {
+  const name  = document.getElementById('inputWlName').value.trim();
+  const size  = parseInt(document.getElementById('inputWlSize').value) || 0;
+  const note  = document.getElementById('inputWlNote').value.trim();
+  if (!name)  { document.getElementById('inputWlName').focus(); return; }
+  if (size < 1) { document.getElementById('inputWlSize').focus(); return; }
+  const id = 'wl_' + Date.now();
+  dbWaitlist.child(id).set({ name, partySize: size, note, addedAt: Date.now(), status: 'waiting' });
+  showToast(`「${name}」已加入候補`);
+  closeWaitlistModal();
+}
+
+document.getElementById('btnOpenWaitlist').addEventListener('click', openWaitlistModal);
+document.getElementById('btnCloseWaitlist').addEventListener('click', closeWaitlistModal);
+document.getElementById('btnAddWaitlist').addEventListener('click', addWaitlistEntry);
+document.getElementById('waitlistModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeWaitlistModal(); });
+document.getElementById('inputWlName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inputWlSize').focus(); });
+document.getElementById('inputWlSize').addEventListener('keydown', e => { if (e.key === 'Enter') addWaitlistEntry(); });
 
 function renderStats() {
   const all = Object.values(tables);
@@ -151,6 +368,11 @@ function buildTableCard(id, table) {
         </div>`;
       }).join('');
 
+  const mins = elapsedMinutes(table.seatedAt);
+  const timerHtml = (mins !== null && table.status !== 'empty' && table.status !== 'paid')
+    ? `<span class="tc-timer${mins >= 120 ? ' tc-timer-danger' : mins >= 90 ? ' tc-timer-warn' : ''}">${formatElapsed(mins)}</span>`
+    : '';
+
   card.innerHTML = `
     <div class="tc-header">
       <div>
@@ -165,7 +387,10 @@ function buildTableCard(id, table) {
         <span class="tc-total-label">小計</span>
         <span class="tc-total-amount">${total > 0 ? '$' + total : '—'}</span>
       </div>
-      ${items.length > 0 ? `<span class="tc-progress">✓ ${doneCount}/${items.length}</span>` : ''}
+      <div class="tc-footer-right">
+        ${items.length > 0 ? `<span class="tc-progress">✓ ${doneCount}/${items.length}</span>` : ''}
+        ${timerHtml}
+      </div>
     </div>
   `;
   return card;
@@ -197,8 +422,9 @@ function updateModalContent(tableId) {
   renderOrderItems(table);
   updateTotalBar(table);
 
-  document.getElementById('btnMarkServed').style.display = table.status === 'ordering' ? '' : 'none';
-  document.getElementById('btnMarkPaid').style.display   = table.status === 'served'   ? '' : 'none';
+  document.getElementById('btnMarkServed').style.display  = table.status === 'ordering' ? '' : 'none';
+  document.getElementById('btnMarkPaid').style.display    = table.status === 'served'   ? '' : 'none';
+  document.getElementById('btnTransferTable').style.display = (table.status === 'ordering' || table.status === 'served') ? '' : 'none';
 }
 
 function renderOrderItems(table) {
@@ -278,7 +504,7 @@ function addItem() {
 
   const itemId = 'item_' + Date.now();
   table.items[itemId] = { name, qty, note, done: false, price };
-  if (table.status === 'empty') table.status = 'ordering';
+  if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
 
   dbOrders.child(activeTableId).set(table);
 
@@ -301,27 +527,48 @@ function renderMenuPicker() {
     return;
   }
 
-  picker.innerHTML = '';
+  const groups = {};
   sorted.forEach(([, item]) => {
-    const chip = document.createElement('button');
-    chip.className = 'menu-pick-chip';
-    const hasOpts = (item.options || []).some(g => g.choices?.length > 0);
-    chip.innerHTML = `
-      <span class="mpc-name">${item.name}</span>
-      ${hasOpts ? '<span class="mpc-options-dot" title="有必選選項"></span>' : ''}
-      <span class="mpc-price">${item.price > 0 ? '$' + item.price : '—'}</span>
-    `;
-    chip.addEventListener('click', () => {
-      const opts = (item.options || []).filter(g => g.choices?.length > 0);
-      if (opts.length > 0) {
-        openOptionPicker(item, opts);
-      } else {
-        document.getElementById('inputItemName').value  = item.name;
-        document.getElementById('inputItemPrice').value = item.price || '';
-        document.getElementById('inputItemName').focus();
-      }
+    const cat = item.category || '其他';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  });
+
+  picker.innerHTML = '';
+  Object.entries(groups).forEach(([cat, items]) => {
+    const group = document.createElement('div');
+    group.className = 'mpc-category-group';
+
+    const label = document.createElement('span');
+    label.className = 'mpc-category-label';
+    label.textContent = cat;
+    group.appendChild(label);
+
+    const row = document.createElement('div');
+    row.className = 'mpc-chips';
+    items.forEach(item => {
+      const chip = document.createElement('button');
+      chip.className = 'menu-pick-chip';
+      const hasOpts = (item.options || []).some(g => g.choices?.length > 0);
+      chip.innerHTML = `
+        <span class="mpc-name">${item.name}</span>
+        ${hasOpts ? '<span class="mpc-options-dot" title="有必選選項"></span>' : ''}
+        <span class="mpc-price">${item.price > 0 ? '$' + item.price : '—'}</span>
+      `;
+      chip.addEventListener('click', () => {
+        const opts = (item.options || []).filter(g => g.choices?.length > 0);
+        if (opts.length > 0) {
+          openOptionPicker(item, opts);
+        } else {
+          document.getElementById('inputItemName').value  = item.name;
+          document.getElementById('inputItemPrice').value = item.price || '';
+          document.getElementById('inputItemName').focus();
+        }
+      });
+      row.appendChild(chip);
     });
-    picker.appendChild(chip);
+    group.appendChild(row);
+    picker.appendChild(group);
   });
 }
 
@@ -378,7 +625,7 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
     name: item.name, qty: 1, price: item.price || 0,
     note: chosen.join('、'), done: false
   };
-  if (table.status === 'empty') table.status = 'ordering';
+  if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   dbOrders.child(activeTableId).set(table);
   showToast(`已加入「${item.name}」${chosen.length ? '（' + chosen.join('、') + '）' : ''}`);
   closeOptionPicker();
@@ -425,6 +672,23 @@ function extractModifiers(text) {
     }
   }
   return found.join('、');
+}
+
+// 模糊比對：計算語音文字與選項的中文字元重疊率，≥50% 視為匹配
+const cjkChars = s => [...s].filter(c => c >= '一' && c <= '鿿');
+
+function fuzzyMatchOption(text, choices) {
+  if (!text.trim() || !choices.length) return null;
+  const textChars = new Set(cjkChars(text));
+  if (textChars.size === 0) return null;
+  let best = null, bestScore = 0;
+  for (const choice of choices) {
+    const cc = cjkChars(choice);
+    if (!cc.length) continue;
+    const score = cc.filter(c => textChars.has(c)).length / cc.length;
+    if (score > bestScore && score >= 0.5) { bestScore = score; best = choice; }
+  }
+  return best;
 }
 
 let recognition      = null;
@@ -495,20 +759,41 @@ function parseVoiceText(rawText) {
   const found = []; // { name, price, start, end }
 
   for (const menuItem of sortedMenu) {
-    let from = 0;
-    while (from < rawText.length) {
-      const idx = rawText.indexOf(menuItem.name, from);
-      if (idx === -1) break;
-      const end = idx + menuItem.name.length;
-      if (!taken.slice(idx, end).some(Boolean)) {
-        found.push({ name: menuItem.name, price: menuItem.price || 0, start: idx, end });
-        for (let k = idx; k < end; k++) taken[k] = true;
+    const aliases = menuItem.voiceAliases || (menuItem.voiceAlias ? [menuItem.voiceAlias] : []);
+    const searchTerms = [menuItem.name, ...aliases];
+    for (const term of searchTerms) {
+      let from = 0;
+      while (from < rawText.length) {
+        const idx = rawText.indexOf(term, from);
+        if (idx === -1) break;
+        const end = idx + term.length;
+        if (!taken.slice(idx, end).some(Boolean)) {
+          found.push({ name: menuItem.name, price: menuItem.price || 0, options: menuItem.options || [], start: idx, end });
+          for (let k = idx; k < end; k++) taken[k] = true;
+        }
+        from = end;
       }
-      from = end;
     }
   }
 
-  if (found.length === 0) return results;
+  // Step 1b：完全匹配失敗 → 模糊比對品名（CJK 字元重疊率 ≥ 0.55）
+  if (found.length === 0) {
+    const textCjkSet = new Set(cjkChars(rawText));
+    let bestMatch = null, bestScore = 0;
+    for (const menuItem of sortedMenu) {
+      const aliases2 = menuItem.voiceAliases || (menuItem.voiceAlias ? [menuItem.voiceAlias] : []);
+      const terms = [menuItem.name, ...aliases2];
+      for (const term of terms) {
+        const ic = cjkChars(term);
+        if (ic.length < 2) continue;
+        const score = ic.filter(c => textCjkSet.has(c)).length / ic.length;
+        if (score > bestScore && score >= 0.55) { bestScore = score; bestMatch = menuItem; }
+      }
+    }
+    if (!bestMatch) return results;
+    // start=0, end=0 讓整段 rawText 進入 lookAfter，供數量與修飾詞解析
+    found.push({ name: bestMatch.name, price: bestMatch.price || 0, options: bestMatch.options || [], start: 0, end: 0 });
+  }
 
   // Step 2：依出現位置排序
   found.sort((a, b) => a.start - b.start);
@@ -528,11 +813,20 @@ function parseVoiceText(rawText) {
     let qty = 1;
     const numBefore = extractNum(lookBefore);
     const numAfter  = extractNum(lookAfter);
-    if (numBefore !== null && numBefore > 0) qty = numBefore;
-    else if (numAfter !== null && numAfter > 0) qty = numAfter;
+    // 優先讀品名後面的數量（"美式一杯" 這種常見語序），其次才讀前面
+    if (numAfter  !== null && numAfter  > 0) qty = numAfter;
+    else if (numBefore !== null && numBefore > 0) qty = numBefore;
 
-    // 備註：只保留已知修飾詞
-    const note = extractModifiers(lookBefore + lookAfter);
+    // 備註：有選項先模糊比對選項，其餘用修飾詞
+    const surroundText = lookBefore + lookAfter;
+    const optGroups = (item.options || []).filter(g => g.choices?.length > 0);
+    let note = '';
+    if (optGroups.length > 0) {
+      const matched = optGroups.map(grp => fuzzyMatchOption(surroundText, grp.choices)).filter(Boolean);
+      note = matched.length > 0 ? matched.join('、') : extractModifiers(surroundText);
+    } else {
+      note = extractModifiers(surroundText);
+    }
 
     results.push({ name: item.name, qty, note, price: item.price });
   }
@@ -610,7 +904,7 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
     table.items[itemId] = { name: item.name, qty: item.qty, note: item.note, done: false, price: item.price };
   });
 
-  if (table.status === 'empty') table.status = 'ordering';
+  if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
 
   dbOrders.child(activeTableId).set(table);
   showToast(`已加入 ${voiceParsedItems.length} 項品項`);
@@ -636,6 +930,7 @@ document.getElementById('btnMarkPaid').addEventListener('click', () => {
   table.status   = 'paid';
   table.paidAt   = Date.now();
   table.paidTotal = total;
+  _alertedTables.delete(activeTableId);
   dbOrders.child(activeTableId).set(table);
   showToast(`已結帳！${total > 0 ? ' 共 $' + total : ''}`);
   closeTableModal();
@@ -664,22 +959,158 @@ function closeTableModal() {
 document.getElementById('tableModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTableModal(); });
 document.getElementById('btnCloseModal').addEventListener('click', closeTableModal);
 
+// ── Transfer Table ──
+function openTransferModal() {
+  const empty = Object.entries(tables).filter(([id, t]) => t.status === 'empty' && id !== activeTableId);
+  const listEl = document.getElementById('transferTableList');
+  if (empty.length === 0) {
+    listEl.innerHTML = '<p class="transfer-empty">目前沒有空桌可以換</p>';
+  } else {
+    listEl.innerHTML = '';
+    empty.forEach(([id, t]) => {
+      const chip = document.createElement('button');
+      chip.className = 'chip transfer-chip';
+      chip.textContent = t.name;
+      chip.addEventListener('click', () => confirmTransfer(id, t.name));
+      listEl.appendChild(chip);
+    });
+  }
+  document.getElementById('transferModal').classList.add('open');
+}
+
+function confirmTransfer(targetId, targetName) {
+  const sourceName = tables[activeTableId]?.name;
+  showConfirm({
+    title: '確認換桌',
+    message: `將「${sourceName}」的訂單移到「${targetName}」？`,
+    danger: false,
+    okLabel: '換桌',
+    icon: 'open_with'
+  }, () => executeTransfer(targetId));
+}
+
+function executeTransfer(targetId) {
+  const source = tables[activeTableId];
+  const target = tables[targetId];
+  if (!source || !target) return;
+
+  const updates = {};
+  updates[`cafe_orders/${targetId}`] = {
+    name: target.name,
+    status: source.status,
+    order: target.order,
+    items: source.items || {},
+    ...(source.seatedAt ? { seatedAt: source.seatedAt } : {})
+  };
+  updates[`cafe_orders/${activeTableId}`] = {
+    name: source.name,
+    status: 'empty',
+    order: source.order,
+    items: {}
+  };
+
+  firebase.database().ref().update(updates).then(() => {
+    const sourceName = source.name;
+    closeTransferModal();
+    closeTableModal();
+    showToast(`「${sourceName}」已換到「${target.name}」`);
+    if (_alertedTables.has(activeTableId)) {
+      _alertedTables.add(targetId);
+      _alertedTables.delete(activeTableId);
+    }
+  });
+}
+
+function closeTransferModal() {
+  document.getElementById('transferModal').classList.remove('open');
+}
+
+document.getElementById('btnTransferTable').addEventListener('click', openTransferModal);
+document.getElementById('btnCloseTransfer').addEventListener('click', closeTransferModal);
+document.getElementById('transferModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTransferModal(); });
+
 // ── Add Table Modal ──
 function openAddTableModal() {
   document.getElementById('addTableModal').classList.add('open');
   document.getElementById('inputTableName').focus();
+  renderTablePresets();
 }
 function closeAddTableModal() {
   document.getElementById('addTableModal').classList.remove('open');
   document.getElementById('inputTableName').value = '';
+  if (_presetEditMode) { _presetEditMode = false; renderTablePresets(); }
 }
 document.getElementById('addTableModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddTableModal(); });
 document.getElementById('btnCloseAddModal').addEventListener('click', closeAddTableModal);
 document.getElementById('btnHeaderAdd').addEventListener('click', openAddTableModal);
 document.getElementById('btnAddTable').addEventListener('click', addTable);
 document.getElementById('inputTableName').addEventListener('keydown', e => { if (e.key === 'Enter') addTable(); });
-document.querySelectorAll('.table-preset').forEach(chip => {
-  chip.addEventListener('click', () => { document.getElementById('inputTableName').value = chip.dataset.name; });
+
+let _presetEditMode = false;
+
+function renderTablePresets() {
+  const container = document.getElementById('presetChips');
+  const editBtn   = document.getElementById('btnEditPresets');
+  if (!container || !editBtn) return;
+  container.innerHTML = '';
+
+  if (_presetEditMode) {
+    editBtn.innerHTML = '<span class="material-symbols-outlined">check</span>';
+    editBtn.title = '完成編輯';
+
+    tablePresets.forEach((name, idx) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip chip-editable';
+      chip.innerHTML = `${name}<button class="chip-del" data-idx="${idx}" title="刪除">×</button>`;
+      container.appendChild(chip);
+    });
+
+    const addRow = document.createElement('div');
+    addRow.className = 'preset-add-row';
+    addRow.innerHTML = `<input class="preset-add-input" id="inputNewPreset" placeholder="新增名稱" maxlength="10" autocomplete="off"><button class="btn-preset-add" id="btnAddPreset"><span class="material-symbols-outlined">add</span></button>`;
+    container.appendChild(addRow);
+
+    container.querySelectorAll('.chip-del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        tablePresets.splice(Number(btn.dataset.idx), 1);
+        savePresets();
+      });
+    });
+
+    document.getElementById('btnAddPreset').addEventListener('click', addPreset);
+    document.getElementById('inputNewPreset').addEventListener('keydown', e => { if (e.key === 'Enter') addPreset(); });
+  } else {
+    editBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+    editBtn.title = '編輯快速選擇';
+
+    tablePresets.forEach(name => {
+      const chip = document.createElement('button');
+      chip.className = 'chip table-preset';
+      chip.textContent = name;
+      chip.addEventListener('click', () => { document.getElementById('inputTableName').value = name; });
+      container.appendChild(chip);
+    });
+  }
+}
+
+function addPreset() {
+  const input = document.getElementById('inputNewPreset');
+  const val = input.value.trim();
+  if (!val || tablePresets.includes(val)) { input.focus(); return; }
+  tablePresets.push(val);
+  savePresets();
+  input.value = '';
+  input.focus();
+}
+
+function savePresets() {
+  dbSettings.child('tablePresets').set(tablePresets);
+}
+
+document.getElementById('btnEditPresets').addEventListener('click', () => {
+  _presetEditMode = !_presetEditMode;
+  renderTablePresets();
 });
 
 function addTable() {
@@ -843,6 +1274,7 @@ function startEditMenuItem(id) {
       <input class="menu-edit-price" id="editPrice-${id}" type="number" value="${item.price || ''}" placeholder="定價">
       <input class="menu-edit-cat-input" id="editCat-${id}" value="${item.category || ''}" placeholder="分類" list="${editListId}" autocomplete="off">
       ${datalistHtml}
+      <input class="menu-edit-input menu-edit-alias" id="editAlias-${id}" value="${(item.voiceAliases || item.voiceAlias ? (item.voiceAliases || [item.voiceAlias]).join('、') : '')}" placeholder="語音別名（可多個，用逗號分隔，如：和服紗、河芙莎）">
     </div>
     <div class="edit-options-section" id="editOptions-${id}"></div>
     <div class="menu-edit-btns">
@@ -917,9 +1349,11 @@ function saveEditMenuItem(id) {
   const name  = document.getElementById(`editName-${id}`)?.value.trim();
   const price = parseFloat(document.getElementById(`editPrice-${id}`)?.value) || 0;
   const cat   = document.getElementById(`editCat-${id}`)?.value.trim() || '其他';
+  const aliasRaw = document.getElementById(`editAlias-${id}`)?.value.trim() || '';
+  const voiceAliases = aliasRaw ? aliasRaw.split(/[,，、]+/).map(s => s.trim()).filter(Boolean) : null;
   if (!name) return;
   const options = _editingOptions.filter(g => g.label || g.choices.length > 0);
-  dbMenu.child(id).update({ name, price, category: cat, options });
+  dbMenu.child(id).update({ name, price, category: cat, options, voiceAliases });
   showToast(`已更新「${name}」`);
 }
 
@@ -952,12 +1386,24 @@ function doSettlement() {
   const dateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const revenue = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
 
+  const itemSales = {};
+  paidToday.forEach(([, t]) => {
+    Object.values(t.items || {}).forEach(item => {
+      if (!item.name) return;
+      const safeKey = item.name.replace(/[.#$\/\[\]]/g, '_');
+      if (!itemSales[safeKey]) itemSales[safeKey] = { name: item.name, qty: 0, revenue: 0 };
+      itemSales[safeKey].qty     += (Number(item.qty)   || 1);
+      itemSales[safeKey].revenue += (Number(item.price) || 0) * (Number(item.qty) || 1);
+    });
+  });
+
   const record = {
     date: dateKey,
     settledAt: Date.now(),
     tableCount: paidToday.length,
     revenue,
-    tables: paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) }))
+    tables: paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) })),
+    itemSales
   };
 
   dbDaily.child(dateKey).set(record)
@@ -1064,25 +1510,149 @@ document.getElementById('reportModal').addEventListener('click', e => {
 });
 document.getElementById('btnWeekly').addEventListener('click', () => setReportMode('weekly'));
 document.getElementById('btnMonthly').addEventListener('click', () => setReportMode('monthly'));
+document.getElementById('btnCustomRange').addEventListener('click', () => setReportMode('custom'));
+document.getElementById('btnRanking').addEventListener('click', () => setReportMode('ranking'));
+document.getElementById('btnApplyDateRange').addEventListener('click', loadAndRenderReport);
+
+let _rankingSortBy = 'qty';
+document.getElementById('btnSortQty').addEventListener('click', () => {
+  _rankingSortBy = 'qty';
+  document.getElementById('btnSortQty').classList.add('active');
+  document.getElementById('btnSortRev').classList.remove('active');
+  loadAndRenderReport();
+});
+document.getElementById('btnSortRev').addEventListener('click', () => {
+  _rankingSortBy = 'revenue';
+  document.getElementById('btnSortQty').classList.remove('active');
+  document.getElementById('btnSortRev').classList.add('active');
+  loadAndRenderReport();
+});
 
 function setReportMode(mode) {
   _reportMode = mode;
   document.getElementById('btnWeekly').classList.toggle('active', mode === 'weekly');
   document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
-  loadAndRenderReport();
+  document.getElementById('btnCustomRange').classList.toggle('active', mode === 'custom');
+  document.getElementById('btnRanking').classList.toggle('active', mode === 'ranking');
+  document.getElementById('reportDateRange').style.display = mode === 'custom' ? 'flex' : 'none';
+  const isRanking = mode === 'ranking';
+  document.getElementById('rankingWrap').style.display        = isRanking ? 'block' : 'none';
+  document.querySelector('.report-summary').style.display     = isRanking ? 'none'  : '';
+  document.querySelector('.report-chart-wrap').style.display  = isRanking ? 'none'  : '';
+  if (mode !== 'custom') loadAndRenderReport();
 }
 
 function openReport() {
   document.getElementById('reportModal').classList.add('open');
+  // 預設日期：本月第一天到今天
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  document.getElementById('inputDateStart').value = toDateStr(firstDay);
+  document.getElementById('inputDateEnd').value   = toDateStr(today);
   loadAndRenderReport();
 }
 
 function loadAndRenderReport() {
+  if (_reportMode === 'ranking') {
+    dbDaily.orderByKey().limitToLast(90).once('value', snap => {
+      renderRankingReport(Object.values(snap.val() || {}));
+    });
+    return;
+  }
+  if (_reportMode === 'custom') {
+    const start = document.getElementById('inputDateStart').value;
+    const end   = document.getElementById('inputDateEnd').value;
+    if (!start || !end || start > end) {
+      showToast('請選擇有效的日期區間');
+      return;
+    }
+    dbDaily.orderByKey().startAt(start).endAt(end).once('value', snap => {
+      renderCustomReport(Object.values(snap.val() || {}), start, end);
+    });
+    return;
+  }
   dbDaily.orderByKey().limitToLast(62).once('value', snap => {
     const records = Object.values(snap.val() || {});
     if (_reportMode === 'weekly') renderWeeklyReport(records);
     else renderMonthlyReport(records);
   });
+}
+
+function renderRankingReport(records) {
+  const totals = {};
+  records.forEach(rec => {
+    if (!rec.itemSales) return;
+    Object.values(rec.itemSales).forEach(data => {
+      const name = data.name || data; // 相容舊格式
+      if (!name || typeof name !== 'string') return;
+      if (!totals[name]) totals[name] = { qty: 0, revenue: 0 };
+      totals[name].qty     += data.qty     || 0;
+      totals[name].revenue += data.revenue || 0;
+    });
+  });
+
+  const list = document.getElementById('rankingList');
+  const sorted = Object.entries(totals).sort((a, b) => b[1][_rankingSortBy] - a[1][_rankingSortBy]);
+
+  if (sorted.length === 0) {
+    list.innerHTML = `<div class="ranking-empty">尚無資料，執行日結後即可累積排行</div>`;
+    return;
+  }
+
+  const medals = ['🥇','🥈','🥉'];
+  list.innerHTML = sorted.map(([name, data], i) => `
+    <div class="ranking-row">
+      <span class="ranking-pos">${medals[i] || (i + 1)}</span>
+      <span class="ranking-name">${name}</span>
+      <span class="ranking-qty">${data.qty} 杯</span>
+      <span class="ranking-rev">$${data.revenue}</span>
+    </div>
+  `).join('');
+}
+
+function renderCustomReport(records, startStr, endStr) {
+  const start    = new Date(startStr + 'T00:00:00');
+  const end      = new Date(endStr   + 'T00:00:00');
+  const diffDays = Math.round((end - start) / 86400000) + 1;
+  const labels = [], revenues = [];
+  let tableCount = 0;
+
+  if (diffDays <= 35) {
+    for (let i = 0; i < diffDays; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const rec = records.find(r => r.date === toDateStr(d));
+      labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+      revenues.push(rec ? rec.revenue : 0);
+      if (rec) tableCount += rec.tableCount;
+    }
+  } else {
+    const weeks = Math.ceil(diffDays / 7);
+    for (let w = 0; w < weeks; w++) {
+      let weekRev = 0, weekTables = 0;
+      for (let d = 0; d < 7; d++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + w * 7 + d);
+        if (date > end) break;
+        const rec = records.find(r => r.date === toDateStr(date));
+        if (rec) { weekRev += rec.revenue; weekTables += rec.tableCount; }
+      }
+      const ws = new Date(start);
+      ws.setDate(start.getDate() + w * 7);
+      labels.push(`${ws.getMonth()+1}/${ws.getDate()}`);
+      revenues.push(weekRev);
+      tableCount += weekTables;
+    }
+  }
+
+  const total      = revenues.reduce((s, r) => s + r, 0);
+  const activeDays = revenues.filter(r => r > 0).length;
+  const dailyAvg   = activeDays > 0 ? Math.round(total / activeDays) : 0;
+
+  document.getElementById('reportPeriodLabel').textContent = `${startStr} ～ ${endStr}`;
+  updateReportSummary(total, 0, tableCount, dailyAvg);
+  document.getElementById('reportChange').textContent = '';
+  drawChart(labels, revenues);
 }
 
 function toDateStr(d) {
