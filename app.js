@@ -310,8 +310,9 @@ function updateModalContent(tableId) {
   renderOrderItems(table);
   updateTotalBar(table);
 
-  document.getElementById('btnMarkServed').style.display = table.status === 'ordering' ? '' : 'none';
-  document.getElementById('btnMarkPaid').style.display   = table.status === 'served'   ? '' : 'none';
+  document.getElementById('btnMarkServed').style.display  = table.status === 'ordering' ? '' : 'none';
+  document.getElementById('btnMarkPaid').style.display    = table.status === 'served'   ? '' : 'none';
+  document.getElementById('btnTransferTable').style.display = (table.status === 'ordering' || table.status === 'served') ? '' : 'none';
 }
 
 function renderOrderItems(table) {
@@ -845,6 +846,76 @@ function closeTableModal() {
 }
 document.getElementById('tableModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTableModal(); });
 document.getElementById('btnCloseModal').addEventListener('click', closeTableModal);
+
+// ── Transfer Table ──
+function openTransferModal() {
+  const empty = Object.entries(tables).filter(([id, t]) => t.status === 'empty' && id !== activeTableId);
+  const listEl = document.getElementById('transferTableList');
+  if (empty.length === 0) {
+    listEl.innerHTML = '<p class="transfer-empty">目前沒有空桌可以換</p>';
+  } else {
+    listEl.innerHTML = '';
+    empty.forEach(([id, t]) => {
+      const chip = document.createElement('button');
+      chip.className = 'chip transfer-chip';
+      chip.textContent = t.name;
+      chip.addEventListener('click', () => confirmTransfer(id, t.name));
+      listEl.appendChild(chip);
+    });
+  }
+  document.getElementById('transferModal').classList.add('open');
+}
+
+function confirmTransfer(targetId, targetName) {
+  const sourceName = tables[activeTableId]?.name;
+  showConfirm({
+    title: '確認換桌',
+    message: `將「${sourceName}」的訂單移到「${targetName}」？`,
+    danger: false,
+    okLabel: '換桌',
+    icon: 'open_with'
+  }, () => executeTransfer(targetId));
+}
+
+function executeTransfer(targetId) {
+  const source = tables[activeTableId];
+  const target = tables[targetId];
+  if (!source || !target) return;
+
+  const updates = {};
+  updates[`cafe_orders/${targetId}`] = {
+    name: target.name,
+    status: source.status,
+    order: target.order,
+    items: source.items || {},
+    ...(source.seatedAt ? { seatedAt: source.seatedAt } : {})
+  };
+  updates[`cafe_orders/${activeTableId}`] = {
+    name: source.name,
+    status: 'empty',
+    order: source.order,
+    items: {}
+  };
+
+  firebase.database().ref().update(updates).then(() => {
+    const sourceName = source.name;
+    closeTransferModal();
+    closeTableModal();
+    showToast(`「${sourceName}」已換到「${target.name}」`);
+    if (_alertedTables.has(activeTableId)) {
+      _alertedTables.add(targetId);
+      _alertedTables.delete(activeTableId);
+    }
+  });
+}
+
+function closeTransferModal() {
+  document.getElementById('transferModal').classList.remove('open');
+}
+
+document.getElementById('btnTransferTable').addEventListener('click', openTransferModal);
+document.getElementById('btnCloseTransfer').addEventListener('click', closeTransferModal);
+document.getElementById('transferModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTransferModal(); });
 
 // ── Add Table Modal ──
 function openAddTableModal() {

@@ -313,6 +313,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions">
+        <button class="btn btn-transfer" id="btnTransferTable">
+          <span class="material-symbols-outlined">open_with</span>
+          換桌
+        </button>
         <button class="btn btn-served" id="btnMarkServed">
           <span class="material-symbols-outlined">room_service</span>
           已出餐
@@ -329,7 +333,22 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════
+  <!-- ══ 換桌選桌 Modal ══ -->
+  <div class="modal-overlay" id="transferModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">open_with</span>
+          <span class="modal-title">換桌</span>
+        </div>
+        <button class="modal-close" id="btnCloseTransfer">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <p class="transfer-hint">選擇要移入的空桌</p>
+      <div id="transferTableList" class="transfer-table-list"></div>
+    </div>
+  </div>
        新增餐桌 Modal
   ══════════════════════════════════════ -->
   <div class="modal-overlay" id="addTableModal">

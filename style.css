@@ -729,9 +729,16 @@ body {
 }
 .btn:hover { opacity: 0.85; transform: translateY(-1px); }
 .btn .material-symbols-outlined { font-size: 1rem; }
-.btn-served { background: var(--green-light); color: var(--green); }
-.btn-paid   { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(152,66,21,0.3); }
-.btn-delete { background: var(--red-light); color: var(--red); }
+.btn-transfer { background: var(--surface-mid); color: var(--text-sub); }
+.btn-served   { background: var(--green-light); color: var(--green); }
+.btn-paid     { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(152,66,21,0.3); }
+.btn-delete   { background: var(--red-light); color: var(--red); }
+
+.transfer-hint { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
+.transfer-table-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; }
+.transfer-chip { font-size: 0.88rem; padding: 8px 18px; }
+.transfer-chip:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+.transfer-empty { font-size: 0.82rem; color: var(--text-muted); padding: 8px 0; }
 
 /* ══════════════════════════════════════════
    Forms (Add Table & Menu)
