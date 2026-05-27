@@ -1278,9 +1278,10 @@ function doSettlement() {
   paidToday.forEach(([, t]) => {
     Object.values(t.items || {}).forEach(item => {
       if (!item.name) return;
-      if (!itemSales[item.name]) itemSales[item.name] = { qty: 0, revenue: 0 };
-      itemSales[item.name].qty     += (Number(item.qty)   || 1);
-      itemSales[item.name].revenue += (Number(item.price) || 0) * (Number(item.qty) || 1);
+      const safeKey = item.name.replace(/[.#$\/\[\]]/g, '_');
+      if (!itemSales[safeKey]) itemSales[safeKey] = { name: item.name, qty: 0, revenue: 0 };
+      itemSales[safeKey].qty     += (Number(item.qty)   || 1);
+      itemSales[safeKey].revenue += (Number(item.price) || 0) * (Number(item.qty) || 1);
     });
   });
 
@@ -1469,7 +1470,9 @@ function renderRankingReport(records) {
   const totals = {};
   records.forEach(rec => {
     if (!rec.itemSales) return;
-    Object.entries(rec.itemSales).forEach(([name, data]) => {
+    Object.values(rec.itemSales).forEach(data => {
+      const name = data.name || data; // 相容舊格式
+      if (!name || typeof name !== 'string') return;
       if (!totals[name]) totals[name] = { qty: 0, revenue: 0 };
       totals[name].qty     += data.qty     || 0;
       totals[name].revenue += data.revenue || 0;
