@@ -15,12 +15,14 @@ const dbMenu            = firebase.database().ref('cafe_menu');
 const dbDaily           = firebase.database().ref('cafe_daily');
 const dbCustomModifiers = firebase.database().ref('cafe_custom_modifiers');
 const dbSettings        = firebase.database().ref('cafe_settings');
+const dbWaitlist        = firebase.database().ref('cafe_waitlist');
 
 // ── State ──
 let tables          = {};
 let menuItems       = {};
-let customModifiers = [];   // string[]
+let customModifiers = [];
 let tablePresets    = ['桌1','桌2','桌3','桌4','桌5','吧台','戶外A','外帶'];
+let waitlist        = {};
 let activeTableId   = null;
 let showPaidTables  = false;
 
@@ -57,6 +59,10 @@ firebase.auth().onAuthStateChanged(user => {
         if (val) tablePresets = Array.isArray(val) ? val : Object.values(val);
         renderTablePresets();
       });
+      dbWaitlist.on('value', snap => {
+        waitlist = snap.val() || {};
+        renderWaitlist();
+      });
     }
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
@@ -66,7 +72,8 @@ firebase.auth().onAuthStateChanged(user => {
       dbMenu.off();
       dbCustomModifiers.off();
       dbSettings.off();
-      tables = {}; menuItems = {}; customModifiers = [];
+      dbWaitlist.off();
+      tables = {}; menuItems = {}; customModifiers = []; waitlist = {};
     }
   }
 });
@@ -154,7 +161,112 @@ function checkTableTimers() {
 setInterval(() => {
   renderTables();
   checkTableTimers();
+  renderWaitlist();
 }, 60000);
+
+// ── Waitlist ──
+function renderWaitlist() {
+  const entries = Object.entries(waitlist).sort((a, b) => a[1].addedAt - b[1].addedAt);
+  const waiting = entries.filter(([, e]) => e.status !== 'seated');
+  document.getElementById('waitlistCount').textContent = waiting.length;
+
+  const container = document.getElementById('waitlistEntries');
+  if (waiting.length === 0) {
+    container.innerHTML = '<p class="waitlist-empty">目前沒有候補</p>';
+    return;
+  }
+
+  container.innerHTML = '';
+  waiting.forEach(([id, entry], idx) => {
+    const mins = Math.floor((Date.now() - entry.addedAt) / 60000);
+    const waitStr = mins < 1 ? '剛剛' : mins < 60 ? `${mins} 分鐘` : `${Math.floor(mins/60)}h${String(mins%60).padStart(2,'0')}m`;
+    const isCalling = entry.status === 'calling';
+
+    const row = document.createElement('div');
+    row.className = `waitlist-entry${isCalling ? ' calling' : ''}`;
+    row.innerHTML = `
+      <span class="wl-pos">#${idx + 1}</span>
+      <div class="wl-info">
+        <span class="wl-name">${entry.name}</span>
+        ${entry.note ? `<span class="wl-note">${entry.note}</span>` : ''}
+      </div>
+      <span class="wl-size">${entry.partySize}人</span>
+      <span class="wl-time">${waitStr}</span>
+      <div class="wl-actions">
+        ${isCalling
+          ? `<span class="wl-calling-badge">叫號中</span>`
+          : `<button class="btn-wl-call" onclick="callParty('${id}')">叫號</button>`}
+        <button class="btn-wl-seat" onclick="seatParty('${id}')">入座</button>
+        <button class="btn-wl-remove" onclick="removeParty('${id}')" title="移除">✕</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function callParty(id) {
+  dbWaitlist.child(id).update({ status: 'calling' });
+  showToast(`已叫號「${waitlist[id]?.name}」`);
+}
+
+function seatParty(id) {
+  const name = waitlist[id]?.name;
+  showConfirm({
+    title: '確認入座',
+    message: `「${name}」已入座，從候補名單移除？`,
+    danger: false,
+    okLabel: '確認入座',
+    icon: 'check_circle'
+  }, () => {
+    dbWaitlist.child(id).remove();
+    showToast(`「${name}」已入座`);
+  });
+}
+
+function removeParty(id) {
+  const name = waitlist[id]?.name;
+  showConfirm({
+    title: '移除候補',
+    message: `確定要將「${name}」從候補名單移除？`,
+    danger: true,
+    okLabel: '移除',
+    icon: 'person_remove'
+  }, () => {
+    dbWaitlist.child(id).remove();
+    showToast(`已移除「${name}」`);
+  });
+}
+
+function openWaitlistModal() {
+  document.getElementById('waitlistModal').classList.add('open');
+  document.getElementById('inputWlName').focus();
+}
+
+function closeWaitlistModal() {
+  document.getElementById('waitlistModal').classList.remove('open');
+  document.getElementById('inputWlName').value = '';
+  document.getElementById('inputWlSize').value = '';
+  document.getElementById('inputWlNote').value = '';
+}
+
+function addWaitlistEntry() {
+  const name = document.getElementById('inputWlName').value.trim();
+  const size = parseInt(document.getElementById('inputWlSize').value) || 0;
+  const note = document.getElementById('inputWlNote').value.trim();
+  if (!name)   { document.getElementById('inputWlName').focus(); return; }
+  if (size < 1) { document.getElementById('inputWlSize').focus(); return; }
+  const id = 'wl_' + Date.now();
+  dbWaitlist.child(id).set({ name, partySize: size, note, addedAt: Date.now(), status: 'waiting' });
+  showToast(`「${name}」已加入候補`);
+  closeWaitlistModal();
+}
+
+document.getElementById('btnOpenWaitlist').addEventListener('click', openWaitlistModal);
+document.getElementById('btnCloseWaitlist').addEventListener('click', closeWaitlistModal);
+document.getElementById('btnAddWaitlist').addEventListener('click', addWaitlistEntry);
+document.getElementById('waitlistModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeWaitlistModal(); });
+document.getElementById('inputWlName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inputWlSize').focus(); });
+document.getElementById('inputWlSize').addEventListener('keydown', e => { if (e.key === 'Enter') addWaitlistEntry(); });
 
 function renderStats() {
   const all = Object.values(tables);

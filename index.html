@@ -152,6 +152,26 @@
     </div>
     <div class="tables-grid" id="tablesGrid"></div>
 
+    <!-- 候補名單區塊 -->
+    <div class="waitlist-section" id="waitlistSection">
+      <div class="waitlist-header">
+        <div class="waitlist-title-row">
+          <span class="material-symbols-outlined waitlist-icon">queue</span>
+          <div>
+            <h3 class="waitlist-title">候補名單</h3>
+            <p class="waitlist-sub">目前等候 <span id="waitlistCount">0</span> 組</p>
+          </div>
+        </div>
+        <button class="btn-wl-add" id="btnOpenWaitlist">
+          <span class="material-symbols-outlined">person_add</span>
+          新增候補
+        </button>
+      </div>
+      <div id="waitlistEntries" class="waitlist-entries">
+        <p class="waitlist-empty">目前沒有候補</p>
+      </div>
+    </div>
+
     <!-- 今日結帳區塊 -->
     <div class="today-section" id="todaySection">
       <div class="today-section-header">
@@ -347,6 +367,37 @@
       </div>
       <p class="transfer-hint">選擇要移入的空桌</p>
       <div id="transferTableList" class="transfer-table-list"></div>
+    </div>
+  </div>
+
+  <!-- ══ 新增候補 Modal ══ -->
+  <div class="modal-overlay" id="waitlistModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">person_add</span>
+          <span class="modal-title">新增候補</span>
+        </div>
+        <button class="modal-close" id="btnCloseWaitlist">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="form-group">
+        <label class="form-label-sm">姓名 / 稱呼</label>
+        <input type="text" class="input-field" id="inputWlName" placeholder="如：王小姐、3號" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label-sm">人數</label>
+        <input type="number" class="input-field" id="inputWlSize" placeholder="2" min="1" max="20">
+      </div>
+      <div class="form-group">
+        <label class="form-label-sm">備註（選填）</label>
+        <input type="text" class="input-field" id="inputWlNote" placeholder="如：有嬰兒車、需要插座" autocomplete="off">
+      </div>
+      <button class="btn-primary-lg" id="btnAddWaitlist">
+        <span class="material-symbols-outlined">add</span>
+        加入候補
+      </button>
     </div>
   </div>
 
