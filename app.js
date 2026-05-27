@@ -253,12 +253,20 @@ function addWaitlistEntry() {
   const name = document.getElementById('inputWlName').value.trim();
   const size = parseInt(document.getElementById('inputWlSize').value) || 0;
   const note = document.getElementById('inputWlNote').value.trim();
-  if (!name)   { document.getElementById('inputWlName').focus(); return; }
+  if (!name)    { document.getElementById('inputWlName').focus(); return; }
   if (size < 1) { document.getElementById('inputWlSize').focus(); return; }
   const id = 'wl_' + Date.now();
-  dbWaitlist.child(id).set({ name, partySize: size, note, addedAt: Date.now(), status: 'waiting' });
-  showToast(`「${name}」已加入候補`);
-  closeWaitlistModal();
+  const btn = document.getElementById('btnAddWaitlist');
+  btn.disabled = true;
+  dbWaitlist.child(id).set({ name, partySize: size, note, addedAt: Date.now(), status: 'waiting' })
+    .then(() => {
+      showToast(`「${name}」已加入候補`);
+      closeWaitlistModal();
+    })
+    .catch(err => {
+      showToast('新增失敗：' + (err.code === 'PERMISSION_DENIED' ? '請確認 Firebase 規則已設定 auth != null' : err.message));
+    })
+    .finally(() => { btn.disabled = false; });
 }
 
 document.getElementById('btnOpenWaitlist').addEventListener('click', openWaitlistModal);
