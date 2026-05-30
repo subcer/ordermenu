@@ -756,10 +756,21 @@ body {
 }
 .btn:hover { opacity: 0.85; transform: translateY(-1px); }
 .btn .material-symbols-outlined { font-size: 1rem; }
-.btn-transfer { background: var(--surface-mid); color: var(--text-sub); }
-.btn-served   { background: var(--green-light); color: var(--green); }
-.btn-paid     { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(152,66,21,0.3); }
-.btn-delete   { background: var(--red-light); color: var(--red); }
+.btn-transfer    { background: var(--surface-mid); color: var(--text-sub); }
+.btn-served      { background: var(--green-light); color: var(--green); }
+.btn-start-timer { background: var(--surface-mid); color: var(--text-sub); }
+.btn-leave       { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(152,66,21,0.3); }
+.btn-paid-visual { background: var(--surface-mid); color: var(--text-sub); border: 1.5px solid var(--border); }
+.btn-paid-visual.paid-confirmed {
+  background: var(--green-light); color: var(--green);
+  border-color: var(--green); font-weight: 800;
+}
+.btn-delete { background: var(--red-light); color: var(--red); }
+
+.tc-badge-paid-flag {
+  background: var(--green-light); color: var(--green);
+  font-weight: 800;
+}
 
 .transfer-hint { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
 .transfer-table-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; }

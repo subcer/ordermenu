@@ -395,7 +395,9 @@ function buildTableCard(id, table) {
       </div>
       <div style="display:flex;align-items:center;gap:6px">
         <span class="tc-drag-handle material-symbols-outlined">drag_indicator</span>
-        <span class="tc-badge">${STATUS_LABEL[table.status]}</span>
+        ${table.paidFlag
+          ? `<span class="tc-badge tc-badge-paid-flag">✓ 已收款</span>`
+          : `<span class="tc-badge">${STATUS_LABEL[table.status]}</span>`}
       </div>
     </div>
     <div class="tc-body">${itemsHtml}</div>
@@ -486,9 +488,19 @@ function updateModalContent(tableId) {
   renderOrderItems(table);
   updateTotalBar(table);
 
-  document.getElementById('btnMarkServed').style.display  = table.status === 'ordering' ? '' : 'none';
-  document.getElementById('btnMarkPaid').style.display    = table.status === 'served'   ? '' : 'none';
-  document.getElementById('btnTransferTable').style.display = (table.status === 'ordering' || table.status === 'served') ? '' : 'none';
+  const isOrdering = table.status === 'ordering';
+  const isServed   = table.status === 'served';
+  const isEmpty    = table.status === 'empty';
+
+  document.getElementById('btnStartTimer').style.display     = isEmpty    ? '' : 'none';
+  document.getElementById('btnMarkServed').style.display     = isOrdering ? '' : 'none';
+  document.getElementById('btnLeave').style.display          = isServed   ? '' : 'none';
+  document.getElementById('btnMarkPaidVisual').style.display = (isOrdering || isServed) ? '' : 'none';
+  document.getElementById('btnTransferTable').style.display  = (isOrdering || isServed) ? '' : 'none';
+
+  const paidVisualBtn = document.getElementById('btnMarkPaidVisual');
+  if (table.paidFlag) paidVisualBtn.classList.add('paid-confirmed');
+  else                paidVisualBtn.classList.remove('paid-confirmed');
 }
 
 function renderOrderItems(table) {
@@ -980,6 +992,15 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
 initSpeechRecognition();
 
 // ── Status Actions ──
+document.getElementById('btnStartTimer').addEventListener('click', () => {
+  const table = tables[activeTableId];
+  if (!table) return;
+  table.status   = 'ordering';
+  table.seatedAt = Date.now();
+  dbOrders.child(activeTableId).set(table);
+  showToast('計時開始');
+});
+
 document.getElementById('btnMarkServed').addEventListener('click', () => {
   const table = tables[activeTableId];
   if (!table) return;
@@ -988,16 +1009,25 @@ document.getElementById('btnMarkServed').addEventListener('click', () => {
   showToast('已標記為「已出餐」');
 });
 
-document.getElementById('btnMarkPaid').addEventListener('click', () => {
+document.getElementById('btnMarkPaidVisual').addEventListener('click', () => {
+  const table = tables[activeTableId];
+  if (!table) return;
+  const nowPaid = !table.paidFlag;
+  dbOrders.child(activeTableId).update({ paidFlag: nowPaid });
+  showToast(nowPaid ? '✓ 已確認收款' : '已取消收款確認');
+});
+
+document.getElementById('btnLeave').addEventListener('click', () => {
   const table = tables[activeTableId];
   if (!table) return;
   const total = calcTotal(table);
-  table.status   = 'paid';
-  table.paidAt   = Date.now();
+  table.status    = 'paid';
+  table.paidAt    = Date.now();
   table.paidTotal = total;
+  table.paidFlag  = false;
   _alertedTables.delete(activeTableId);
   dbOrders.child(activeTableId).set(table);
-  showToast(`已結帳！${total > 0 ? ' 共 $' + total : ''}`);
+  showToast(`客人離開，共 $${total}`);
   closeTableModal();
 });
 
