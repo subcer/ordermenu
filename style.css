@@ -371,6 +371,19 @@ body {
 .modal-sm  { max-width: 440px; }
 .modal-menu{ max-width: 580px; }
 
+/* 橫式 / 平板高度不足時：改為置中，避免內容超出畫面 */
+@media (orientation: landscape) and (max-height: 768px) {
+  .modal-overlay {
+    align-items: center;
+    padding: 12px;
+  }
+  .modal {
+    border-radius: var(--radius);
+    max-height: 90vh;
+    width: calc(100% - 24px);
+  }
+}
+
 @keyframes slideUp {
   from { transform: translateY(60px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
