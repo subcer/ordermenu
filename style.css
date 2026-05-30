@@ -221,6 +221,20 @@ body {
 }
 .table-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
 .table-card:active { transform: scale(0.98); }
+.table-card.dragging { opacity: 0.3; transform: none !important; }
+.table-card.drag-over {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+.tc-drag-handle {
+  font-size: 1rem; color: var(--text-muted);
+  opacity: 0; cursor: grab; transition: opacity 0.15s;
+  flex-shrink: 0; user-select: none;
+}
+.table-card:hover .tc-drag-handle { opacity: 0.5; }
+.tc-drag-handle:active { cursor: grabbing; }
 
 /* Card Header */
 .tc-header {

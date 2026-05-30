@@ -360,6 +360,12 @@ function renderTables() {
 function buildTableCard(id, table) {
   const card = document.createElement('div');
   card.className = `table-card status-${table.status}`;
+  card.id = `tcard-${id}`;
+  card.draggable = true;
+  card.ondragstart = e => tableDragStart(e, id);
+  card.ondragover  = e => tableDragOver(e, id);
+  card.ondrop      = e => tableDrop(e, id);
+  card.ondragend   = () => tableDragEnd();
   card.onclick = () => openTableModal(id);
 
   const items = Object.values(table.items || {});
@@ -387,7 +393,10 @@ function buildTableCard(id, table) {
         <span class="tc-label">餐桌</span>
         <h3 class="tc-name">${table.name}</h3>
       </div>
-      <span class="tc-badge">${STATUS_LABEL[table.status]}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="tc-drag-handle material-symbols-outlined">drag_indicator</span>
+        <span class="tc-badge">${STATUS_LABEL[table.status]}</span>
+      </div>
     </div>
     <div class="tc-body">${itemsHtml}</div>
     <div class="tc-footer">
@@ -402,6 +411,53 @@ function buildTableCard(id, table) {
     </div>
   `;
   return card;
+}
+
+// ── Table Drag & Drop ──
+let _tableDragId = null;
+
+function tableDragStart(e, id) {
+  _tableDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => document.getElementById(`tcard-${id}`)?.classList.add('dragging'), 0);
+}
+
+function tableDragOver(e, id) {
+  if (!_tableDragId || _tableDragId === id) return;
+  e.preventDefault();
+  document.querySelectorAll('.table-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+  document.getElementById(`tcard-${id}`)?.classList.add('drag-over');
+}
+
+function tableDrop(e, id) {
+  e.preventDefault();
+  document.querySelectorAll('.table-card').forEach(c => c.classList.remove('drag-over', 'dragging'));
+  const srcId = _tableDragId;
+  _tableDragId = null;
+  if (!srcId || srcId === id) return;
+
+  const allVisible = Object.entries(tables)
+    .filter(([, t]) => t.status !== 'paid')
+    .sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0));
+
+  const srcIdx = allVisible.findIndex(([i]) => i === srcId);
+  const dstIdx = allVisible.findIndex(([i]) => i === id);
+  if (srcIdx === -1 || dstIdx === -1) return;
+
+  const [moved] = allVisible.splice(srcIdx, 1);
+  allVisible.splice(dstIdx, 0, moved);
+
+  const updates = {};
+  allVisible.forEach(([tableId], idx) => {
+    updates[`cafe_orders/${tableId}/order`] = idx * 10;
+  });
+  firebase.database().ref().update(updates);
+}
+
+function tableDragEnd() {
+  document.querySelectorAll('.table-card').forEach(c => c.classList.remove('drag-over', 'dragging'));
+  _tableDragId = null;
 }
 
 // ── Table Modal ──
