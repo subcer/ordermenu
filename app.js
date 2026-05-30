@@ -1097,7 +1097,6 @@ document.getElementById('transferModal').addEventListener('click', e => { if (e.
 // ── Add Table Modal ──
 function openAddTableModal() {
   document.getElementById('addTableModal').classList.add('open');
-  document.getElementById('inputTableName').focus();
   renderTablePresets();
 }
 function closeAddTableModal() {
