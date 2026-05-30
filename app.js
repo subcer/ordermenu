@@ -396,7 +396,7 @@ function buildTableCard(id, table) {
       <div style="display:flex;align-items:center;gap:6px">
         <span class="tc-drag-handle material-symbols-outlined">drag_indicator</span>
         ${table.paidFlag
-          ? `<span class="tc-badge tc-badge-paid-flag">✓ 已收款</span>`
+          ? `<span class="tc-badge tc-badge-paid-flag ${table.status}">✓ 已收款</span>`
           : `<span class="tc-badge">${STATUS_LABEL[table.status]}</span>`}
       </div>
     </div>

@@ -767,8 +767,13 @@ body {
 }
 .btn-delete { background: var(--red-light); color: var(--red); }
 
-.tc-badge-paid-flag {
-  background: var(--green-light); color: var(--green);
+/* 已結帳（收款確認）：依狀態顯示不同顏色 */
+.tc-badge-paid-flag.ordering {
+  background: var(--primary-light); color: var(--primary-dark);
+  font-weight: 800;
+}
+.tc-badge-paid-flag.served {
+  background: #d4f0e8; color: #1a6b5e;
   font-weight: 800;
 }
 
