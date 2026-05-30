@@ -188,7 +188,7 @@ function renderWaitlist() {
       <span class="wl-pos">#${idx + 1}</span>
       <div class="wl-info">
         <span class="wl-name">${entry.name}</span>
-        ${entry.note ? `<span class="wl-note">${entry.note}</span>` : ''}
+        <span class="wl-note">${[entry.phone, entry.note].filter(Boolean).join('・')}</span>
       </div>
       <span class="wl-size">${entry.partySize}人</span>
       <span class="wl-time">${waitStr}</span>
@@ -244,21 +244,29 @@ function openWaitlistModal() {
 
 function closeWaitlistModal() {
   document.getElementById('waitlistModal').classList.remove('open');
-  document.getElementById('inputWlName').value = '';
-  document.getElementById('inputWlSize').value = '';
-  document.getElementById('inputWlNote').value = '';
+  document.getElementById('inputWlName').value  = '';
+  document.getElementById('inputWlTitle').value = '先生';
+  document.getElementById('inputWlPhone').value = '';
+  document.getElementById('inputWlSize').value  = '';
+  document.getElementById('inputWlNote').value  = '';
 }
 
 function addWaitlistEntry() {
-  const name = document.getElementById('inputWlName').value.trim();
-  const size = parseInt(document.getElementById('inputWlSize').value) || 0;
-  const note = document.getElementById('inputWlNote').value.trim();
-  if (!name)    { document.getElementById('inputWlName').focus(); return; }
-  if (size < 1) { document.getElementById('inputWlSize').focus(); return; }
+  const lastName = document.getElementById('inputWlName').value.trim();
+  const title    = document.getElementById('inputWlTitle').value;
+  const phone    = document.getElementById('inputWlPhone').value.trim();
+  const size     = parseInt(document.getElementById('inputWlSize').value) || 0;
+  const note     = document.getElementById('inputWlNote').value.trim();
+  const name     = lastName ? lastName + title : '';
+
+  if (!lastName) { document.getElementById('inputWlName').focus(); showToast('請輸入姓名'); return; }
+  if (!phone)    { document.getElementById('inputWlPhone').focus(); showToast('請輸入手機號碼'); return; }
+  if (size < 1)  { document.getElementById('inputWlSize').focus(); showToast('請選擇人數'); return; }
+
   const id = 'wl_' + Date.now();
   const btn = document.getElementById('btnAddWaitlist');
   btn.disabled = true;
-  dbWaitlist.child(id).set({ name, partySize: size, note, addedAt: Date.now(), status: 'waiting' })
+  dbWaitlist.child(id).set({ name, phone, partySize: size, note, addedAt: Date.now(), status: 'waiting' })
     .then(() => {
       showToast(`「${name}」已加入候補`);
       closeWaitlistModal();
@@ -273,8 +281,8 @@ document.getElementById('btnOpenWaitlist').addEventListener('click', openWaitlis
 document.getElementById('btnCloseWaitlist').addEventListener('click', closeWaitlistModal);
 document.getElementById('btnAddWaitlist').addEventListener('click', addWaitlistEntry);
 document.getElementById('waitlistModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeWaitlistModal(); });
-document.getElementById('inputWlName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inputWlSize').focus(); });
-document.getElementById('inputWlSize').addEventListener('keydown', e => { if (e.key === 'Enter') addWaitlistEntry(); });
+document.getElementById('inputWlName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inputWlPhone').focus(); });
+document.getElementById('inputWlPhone').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('inputWlSize').focus(); });
 
 function renderStats() {
   const all = Object.values(tables);

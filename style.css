@@ -1606,6 +1606,14 @@ body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+.wl-name-row {
+  display: flex; gap: 8px;
+}
+.wl-name-row .input-field { flex: 1; }
+.wl-title-select { width: 80px; flex-shrink: 0; cursor: pointer; }
+
+.form-required { color: var(--red); font-size: 0.75rem; margin-left: 2px; }
+
 .wl-size {
   display: inline-flex; align-items: center; gap: 3px;
   background: var(--surface-low);
