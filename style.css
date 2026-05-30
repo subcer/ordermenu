@@ -769,12 +769,22 @@ body {
 
 /* 已結帳（收款確認）：依狀態顯示不同顏色 */
 .tc-badge-paid-flag.ordering {
-  background: var(--primary-light); color: var(--primary-dark);
+  background: #fef3c7; color: #92400e;
   font-weight: 800;
 }
 .tc-badge-paid-flag.served {
-  background: #d4f0e8; color: #1a6b5e;
+  background: #ccfbf1; color: #134e4a;
   font-weight: 800;
+}
+
+/* 卡片邊框 + 背景 */
+.paid-flag-ordering {
+  border-top: 3px solid #f59e0b !important;
+  background: #fffbeb;
+}
+.paid-flag-served {
+  border-top: 3px solid #0d9488 !important;
+  background: #f0fdfa;
 }
 
 .transfer-hint { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }

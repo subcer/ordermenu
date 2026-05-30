@@ -359,7 +359,8 @@ function renderTables() {
 
 function buildTableCard(id, table) {
   const card = document.createElement('div');
-  card.className = `table-card status-${table.status}`;
+  const paidFlagClass = table.paidFlag ? ` paid-flag-${table.status}` : '';
+  card.className = `table-card status-${table.status}${paidFlagClass}`;
   card.id = `tcard-${id}`;
   card.draggable = true;
   card.ondragstart = e => tableDragStart(e, id);
