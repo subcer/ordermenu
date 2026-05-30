@@ -537,6 +537,7 @@ function renderMenuPicker() {
 
   const groups = {};
   sorted.forEach(([, item]) => {
+    if (item.hidden) return;
     const cat = item.category || '其他';
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(item);
@@ -760,7 +761,7 @@ function parseVoiceText(rawText) {
   if (Object.keys(menuItems).length === 0) return results;
 
   // 名字長的先比對，避免「抹茶拿鐵」先被「拿鐵」截走
-  const sortedMenu = Object.values(menuItems).sort((a, b) => b.name.length - a.name.length);
+  const sortedMenu = Object.values(menuItems).filter(i => !i.hidden).sort((a, b) => b.name.length - a.name.length);
 
   // Step 1：掃描全句找出所有品項位置，不重疊
   const taken = new Array(rawText.length).fill(false);
@@ -1236,7 +1237,7 @@ function renderMenuItemsList() {
     section.innerHTML = `<div class="menu-category-label">${cat}</div>`;
     items.forEach(([id, item]) => {
       const row = document.createElement('div');
-      row.className = 'menu-manage-row';
+      row.className = `menu-manage-row${item.hidden ? ' menu-item-hidden' : ''}`;
       row.id = `menu-row-${id}`;
       const activeOpts = (item.options || []).filter(g => g.choices?.length > 0);
       const optTagsHtml = activeOpts.length > 0
@@ -1246,9 +1247,13 @@ function renderMenuItemsList() {
       row.innerHTML = `
         <div style="flex:1;min-width:0">
           <span class="menu-manage-name">${item.name}</span>
+          ${item.hidden ? '<span class="menu-hidden-badge">已隱藏</span>' : ''}
           ${optTagsHtml}
         </div>
         <span class="menu-manage-price">${item.price > 0 ? '$' + item.price : '未定價'}</span>
+        <button class="btn-toggle-hidden" onclick="toggleMenuItemHidden('${id}')" title="${item.hidden ? '取消隱藏' : '隱藏品項'}">
+          <span class="material-symbols-outlined">${item.hidden ? 'visibility_off' : 'visibility'}</span>
+        </button>
         <button class="btn-edit-item" onclick="startEditMenuItem('${id}')" title="編輯">
           <span class="material-symbols-outlined">edit</span>
         </button>
@@ -1260,6 +1265,14 @@ function renderMenuItemsList() {
     });
     list.appendChild(section);
   });
+}
+
+function toggleMenuItemHidden(id) {
+  const item = menuItems[id];
+  if (!item) return;
+  const nowHidden = !item.hidden;
+  dbMenu.child(id).update({ hidden: nowHidden });
+  showToast(nowHidden ? `「${item.name}」已隱藏` : `「${item.name}」已顯示`);
 }
 
 let _editingOptions = [];

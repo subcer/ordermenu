@@ -838,7 +838,7 @@ body {
 .menu-manage-name  { flex: 1; font-weight: 700; font-size: 0.88rem; }
 .menu-manage-price { font-family: 'Manrope', sans-serif; font-size: 0.88rem; font-weight: 800; color: var(--primary); min-width: 60px; text-align: right; }
 
-.btn-edit-item {
+.btn-edit-item, .btn-toggle-hidden {
   display: flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: var(--radius-xs);
   background: none; border: 1.5px solid transparent;
@@ -846,7 +846,20 @@ body {
   transition: all 0.15s; flex-shrink: 0;
 }
 .btn-edit-item:hover { background: var(--primary-faint); border-color: var(--primary); color: var(--primary); }
-.btn-edit-item .material-symbols-outlined { font-size: 0.95rem; }
+.btn-edit-item .material-symbols-outlined,
+.btn-toggle-hidden .material-symbols-outlined { font-size: 0.95rem; }
+.btn-toggle-hidden:hover { background: var(--surface-mid); color: var(--text); }
+
+.menu-item-hidden { opacity: 0.45; }
+.menu-item-hidden .menu-manage-name { text-decoration: line-through; }
+.menu-hidden-badge {
+  display: inline-block;
+  font-size: 0.65rem; font-weight: 700;
+  background: var(--surface-high); color: var(--text-muted);
+  border-radius: 999px; padding: 1px 7px;
+  margin-left: 6px; vertical-align: middle;
+  letter-spacing: 0.03em;
+}
 
 .menu-manage-row.editing {
   flex-direction: column; align-items: stretch; gap: 8px;
