@@ -1096,8 +1096,11 @@ document.getElementById('transferModal').addEventListener('click', e => { if (e.
 
 // ── Add Table Modal ──
 function openAddTableModal() {
+  const input = document.getElementById('inputTableName');
+  input.setAttribute('readonly', true);
   document.getElementById('addTableModal').classList.add('open');
   renderTablePresets();
+  setTimeout(() => input.removeAttribute('readonly'), 100);
 }
 function closeAddTableModal() {
   document.getElementById('addTableModal').classList.remove('open');
