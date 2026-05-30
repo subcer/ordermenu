@@ -554,6 +554,9 @@ function toggleItemDone(itemId) {
   const table = tables[activeTableId];
   if (!table?.items?.[itemId]) return;
   table.items[itemId].done = !table.items[itemId].done;
+  // 全部打勾時自動變已出餐
+  const allDone = Object.values(table.items).every(i => i.done);
+  if (allDone && table.status === 'ordering') table.status = 'served';
   dbOrders.child(activeTableId).set(table);
 }
 
@@ -582,6 +585,8 @@ function addItem() {
   const itemId = 'item_' + Date.now();
   table.items[itemId] = { name, qty, note, done: false, price };
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
+  // 已出餐後加點 → 退回點餐中
+  else if (table.status === 'served') { table.status = 'ordering'; }
 
   dbOrders.child(activeTableId).set(table);
 
@@ -704,6 +709,7 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
     note: chosen.join('、'), done: false
   };
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
+  else if (table.status === 'served') { table.status = 'ordering'; }
   dbOrders.child(activeTableId).set(table);
   showToast(`已加入「${item.name}」${chosen.length ? '（' + chosen.join('、') + '）' : ''}`);
   closeOptionPicker();
@@ -983,6 +989,7 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
   });
 
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
+  else if (table.status === 'served') { table.status = 'ordering'; }
 
   dbOrders.child(activeTableId).set(table);
   showToast(`已加入 ${voiceParsedItems.length} 項品項`);
@@ -1005,9 +1012,11 @@ document.getElementById('btnStartTimer').addEventListener('click', () => {
 document.getElementById('btnMarkServed').addEventListener('click', () => {
   const table = tables[activeTableId];
   if (!table) return;
+  // 一鍵全部打勾
+  Object.values(table.items || {}).forEach(i => { i.done = true; });
   table.status = 'served';
   dbOrders.child(activeTableId).set(table);
-  showToast('已標記為「已出餐」');
+  showToast('已出餐，全部品項已打勾');
 });
 
 document.getElementById('btnMarkPaidVisual').addEventListener('click', () => {
