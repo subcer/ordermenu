@@ -1239,12 +1239,18 @@ function renderMenuItemsList() {
       const row = document.createElement('div');
       row.className = `menu-manage-row${item.hidden ? ' menu-item-hidden' : ''}`;
       row.id = `menu-row-${id}`;
+      row.draggable = true;
+      row.ondragstart = e => menuDragStart(e, id);
+      row.ondragover  = e => menuDragOver(e, id);
+      row.ondrop      = e => menuDrop(e, id);
+      row.ondragend   = () => menuDragEnd();
       const activeOpts = (item.options || []).filter(g => g.choices?.length > 0);
       const optTagsHtml = activeOpts.length > 0
         ? `<div class="menu-has-options">${activeOpts.map(g =>
             `<span class="menu-option-tag">${g.label || '選項'}：${g.choices.join(' / ')}</span>`
           ).join('')}</div>` : '';
       row.innerHTML = `
+        <span class="drag-handle material-symbols-outlined">drag_indicator</span>
         <div style="flex:1;min-width:0">
           <span class="menu-manage-name">${item.name}</span>
           ${item.hidden ? '<span class="menu-hidden-badge">已隱藏</span>' : ''}
@@ -1265,6 +1271,56 @@ function renderMenuItemsList() {
     });
     list.appendChild(section);
   });
+}
+
+// ── Menu Drag & Drop ──
+let _menuDragId = null;
+
+function menuDragStart(e, id) {
+  _menuDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => document.getElementById(`menu-row-${id}`)?.classList.add('dragging'), 0);
+}
+
+function menuDragOver(e, id) {
+  if (!_menuDragId || _menuDragId === id) return;
+  const src = menuItems[_menuDragId];
+  const dst = menuItems[id];
+  if (!src || !dst || src.category !== dst.category) return;
+  e.preventDefault();
+  document.querySelectorAll('.menu-manage-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+  document.getElementById(`menu-row-${id}`)?.classList.add('drag-over');
+}
+
+function menuDrop(e, id) {
+  e.preventDefault();
+  document.querySelectorAll('.menu-manage-row').forEach(r => r.classList.remove('drag-over', 'dragging'));
+  const srcId = _menuDragId;
+  _menuDragId = null;
+  if (!srcId || srcId === id) return;
+
+  const src = menuItems[srcId];
+  const dst = menuItems[id];
+  if (!src || !dst || src.category !== dst.category) return;
+
+  // Reorder within the category in global order space
+  const allSorted = Object.entries(menuItems).sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0));
+  const srcIdx = allSorted.findIndex(([i]) => i === srcId);
+  const dstIdx = allSorted.findIndex(([i]) => i === id);
+  const [moved] = allSorted.splice(srcIdx, 1);
+  allSorted.splice(dstIdx, 0, moved);
+
+  const updates = {};
+  allSorted.forEach(([itemId], idx) => {
+    updates[`cafe_menu/${itemId}/order`] = idx * 10;
+  });
+  firebase.database().ref().update(updates);
+}
+
+function menuDragEnd() {
+  document.querySelectorAll('.menu-manage-row').forEach(r => r.classList.remove('drag-over', 'dragging'));
+  _menuDragId = null;
 }
 
 function toggleMenuItemHidden(id) {

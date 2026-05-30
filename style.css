@@ -850,6 +850,20 @@ body {
 .btn-toggle-hidden .material-symbols-outlined { font-size: 0.95rem; }
 .btn-toggle-hidden:hover { background: var(--surface-mid); color: var(--text); }
 
+.drag-handle {
+  font-size: 1.1rem; color: var(--text-muted);
+  cursor: grab; flex-shrink: 0; opacity: 0;
+  transition: opacity 0.15s; user-select: none;
+}
+.menu-manage-row:hover .drag-handle { opacity: 0.6; }
+.drag-handle:active { cursor: grabbing; }
+
+.menu-manage-row.dragging { opacity: 0.3; }
+.menu-manage-row.drag-over {
+  border-top: 2px solid var(--primary);
+  padding-top: 6px;
+}
+
 .menu-item-hidden { opacity: 0.45; }
 .menu-item-hidden .menu-manage-name { text-decoration: line-through; }
 .menu-hidden-badge {
