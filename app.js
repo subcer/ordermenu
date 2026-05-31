@@ -653,7 +653,6 @@ function renderMenuPicker() {
         } else {
           document.getElementById('inputItemName').value  = item.name;
           document.getElementById('inputItemPrice').value = item.price || '';
-          document.getElementById('inputItemName').focus();
         }
       });
       row.appendChild(chip);
