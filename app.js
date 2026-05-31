@@ -238,8 +238,10 @@ function removeParty(id) {
 }
 
 function openWaitlistModal() {
+  const input = document.getElementById('inputWlName');
+  input.setAttribute('readonly', true);
   document.getElementById('waitlistModal').classList.add('open');
-  document.getElementById('inputWlName').focus();
+  setTimeout(() => input.removeAttribute('readonly'), 100);
 }
 
 function closeWaitlistModal() {
@@ -602,7 +604,6 @@ function addItem() {
   document.getElementById('inputItemPrice').value = '';
   document.getElementById('inputItemQty').value   = '1';
   document.getElementById('inputItemNote').value  = '';
-  document.getElementById('inputItemName').focus();
 
   showToast(`已加入「${name}」${price > 0 ? ' $' + price : ''}`);
 }
