@@ -16,6 +16,7 @@ const dbDaily           = firebase.database().ref('cafe_daily');
 const dbCustomModifiers = firebase.database().ref('cafe_custom_modifiers');
 const dbSettings        = firebase.database().ref('cafe_settings');
 const dbWaitlist        = firebase.database().ref('cafe_waitlist');
+const dbDailyQueue      = firebase.database().ref('cafe_daily_queue');
 
 // ── State ──
 let tables          = {};
@@ -23,6 +24,7 @@ let menuItems       = {};
 let customModifiers = [];
 let tablePresets    = ['桌1','桌2','桌3','桌4','桌5','吧台','戶外A','外帶'];
 let waitlist        = {};
+let dailyQueue      = {};
 let activeTableId   = null;
 let showPaidTables  = false;
 
@@ -63,6 +65,10 @@ firebase.auth().onAuthStateChanged(user => {
         waitlist = snap.val() || {};
         renderWaitlist();
       });
+      dbDailyQueue.on('value', snap => {
+        dailyQueue = snap.val() || {};
+        renderTodaySection();
+      });
     }
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
@@ -73,7 +79,8 @@ firebase.auth().onAuthStateChanged(user => {
       dbCustomModifiers.off();
       dbSettings.off();
       dbWaitlist.off();
-      tables = {}; menuItems = {}; customModifiers = []; waitlist = {};
+      dbDailyQueue.off();
+      tables = {}; menuItems = {}; customModifiers = []; waitlist = {}; dailyQueue = {};
     }
   }
 });
@@ -297,9 +304,16 @@ function renderStats() {
 
 function renderTodaySection() {
   const paid = Object.entries(tables).filter(([, t]) => t.status === 'paid');
-  const count = paid.length;
-  const revenue = paid.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
-  const names = paid.map(([, t]) => t.name).join('、');
+  const todayQueue = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
+
+  const count = paid.length + todayQueue.length;
+  const revenue =
+    paid.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0) +
+    todayQueue.reduce((sum, [, q]) => sum + (q.total || 0), 0);
+  const names = [
+    ...paid.map(([, t]) => t.name),
+    ...todayQueue.map(([, q]) => q.tableName + '（固定）')
+  ].join('、');
 
   document.getElementById('todayPaidCount').textContent = count;
   document.getElementById('todayPaidTables').textContent = names;
@@ -405,6 +419,7 @@ function buildTableCard(id, table) {
         <h3 class="tc-name">${table.name}</h3>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
+        ${table.fixed ? '<span class="tc-fixed-pin material-symbols-outlined" title="固定桌">push_pin</span>' : ''}
         <span class="tc-drag-handle material-symbols-outlined">drag_indicator</span>
         ${table.paidFlag
           ? `<span class="tc-badge tc-badge-paid-flag ${table.status}">✓ 已收款</span>`
@@ -512,6 +527,10 @@ function updateModalContent(tableId) {
   const paidVisualBtn = document.getElementById('btnMarkPaidVisual');
   if (table.paidFlag) paidVisualBtn.classList.add('paid-confirmed');
   else                paidVisualBtn.classList.remove('paid-confirmed');
+
+  const fixedBtn = document.getElementById('btnToggleFixed');
+  if (table.fixed) fixedBtn.classList.add('is-fixed');
+  else             fixedBtn.classList.remove('is-fixed');
 }
 
 function renderOrderItems(table) {
@@ -1039,14 +1058,42 @@ document.getElementById('btnLeave').addEventListener('click', () => {
   const table = tables[activeTableId];
   if (!table) return;
   const total = calcTotal(table);
-  table.status    = 'paid';
-  table.paidAt    = Date.now();
-  table.paidTotal = total;
-  table.paidFlag  = false;
   _alertedTables.delete(activeTableId);
-  dbOrders.child(activeTableId).set(table);
-  showToast(`客人離開，共 $${total}`);
+
+  if (table.fixed) {
+    const queueId = 'q_' + Date.now();
+    const updates = {};
+    updates[`cafe_daily_queue/${queueId}`] = {
+      tableName: table.name,
+      total,
+      items: table.items || {},
+      completedAt: Date.now()
+    };
+    updates[`cafe_orders/${activeTableId}`] = {
+      name: table.name,
+      status: 'empty',
+      order: table.order,
+      fixed: true
+    };
+    firebase.database().ref().update(updates);
+    showToast(`客人離開（固定桌），共 $${total}`);
+  } else {
+    table.status    = 'paid';
+    table.paidAt    = Date.now();
+    table.paidTotal = total;
+    table.paidFlag  = false;
+    dbOrders.child(activeTableId).set(table);
+    showToast(`客人離開，共 $${total}`);
+  }
   closeTableModal();
+});
+
+document.getElementById('btnToggleFixed').addEventListener('click', () => {
+  const table = tables[activeTableId];
+  if (!table) return;
+  const nowFixed = !table.fixed;
+  dbOrders.child(activeTableId).update({ fixed: nowFixed });
+  showToast(nowFixed ? `「${table.name}」設為固定桌` : `「${table.name}」已取消固定`);
 });
 
 document.getElementById('btnDeleteTable').addEventListener('click', () => {
@@ -1113,12 +1160,15 @@ function executeTransfer(targetId) {
     status: source.status,
     order: target.order,
     items: source.items || {},
-    ...(source.seatedAt ? { seatedAt: source.seatedAt } : {})
+    ...(source.seatedAt ? { seatedAt: source.seatedAt } : {}),
+    ...(source.paidFlag ? { paidFlag: true } : {}),
+    ...(target.fixed    ? { fixed: true }    : {})
   };
   updates[`cafe_orders/${activeTableId}`] = {
     name: source.name,
     status: 'empty',
     order: source.order,
+    ...(source.fixed ? { fixed: true } : {}),
     items: {}
   };
 
@@ -1542,19 +1592,27 @@ function saveEditMenuItem(id) {
 
 // ── Daily Settlement ──
 function openSettlementModal() {
-  const paidToday = Object.entries(tables).filter(([, t]) => t.status === 'paid');
-  if (paidToday.length === 0) { showToast('今日尚無已結帳桌次'); return; }
+  const paidToday  = Object.entries(tables).filter(([, t]) => t.status === 'paid');
+  const queueToday = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
+  if (paidToday.length === 0 && queueToday.length === 0) { showToast('今日尚無已結帳桌次'); return; }
 
-  const revenue = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
-  const rowsHtml = paidToday.map(([, t]) =>
+  const paidRevenue  = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
+  const queueRevenue = queueToday.reduce((sum, [, q]) => sum + (q.total || 0), 0);
+  const revenue = paidRevenue + queueRevenue;
+
+  const paidRowsHtml = paidToday.map(([, t]) =>
     `<div class="settlement-row"><span class="name">${t.name}</span><span class="amount">$${t.paidTotal || calcTotal(t)}</span></div>`
   ).join('');
+  const queueRowsHtml = queueToday.map(([, q]) =>
+    `<div class="settlement-row"><span class="name">${q.tableName}<span class="settlement-fixed-tag">固定桌</span></span><span class="amount">$${q.total}</span></div>`
+  ).join('');
 
+  const totalCount = paidToday.length + queueToday.length;
   document.getElementById('settlementSummary').innerHTML = `
-    ${rowsHtml}
+    ${paidRowsHtml}${queueRowsHtml}
     <div class="settlement-divider"></div>
     <div class="settlement-row settlement-total">
-      <span class="name">共 ${paidToday.length} 桌</span>
+      <span class="name">共 ${totalCount} 桌</span>
       <span class="amount">$${revenue}</span>
     </div>
   `;
@@ -1562,35 +1620,47 @@ function openSettlementModal() {
 }
 
 function doSettlement() {
-  const paidToday = Object.entries(tables).filter(([, t]) => t.status === 'paid');
-  if (paidToday.length === 0) return;
+  const paidToday  = Object.entries(tables).filter(([, t]) => t.status === 'paid');
+  const queueToday = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
+  if (paidToday.length === 0 && queueToday.length === 0) return;
 
   const now = new Date();
   const dateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const revenue = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
+  const paidRevenue  = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
+  const queueRevenue = queueToday.reduce((sum, [, q]) => sum + (q.total || 0), 0);
+  const revenue = paidRevenue + queueRevenue;
 
   const itemSales = {};
-  paidToday.forEach(([, t]) => {
-    Object.values(t.items || {}).forEach(item => {
+  const collectItems = items => {
+    Object.values(items || {}).forEach(item => {
       if (!item.name) return;
       const safeKey = item.name.replace(/[.#$\/\[\]]/g, '_');
       if (!itemSales[safeKey]) itemSales[safeKey] = { name: item.name, qty: 0, revenue: 0 };
       itemSales[safeKey].qty     += (Number(item.qty)   || 1);
       itemSales[safeKey].revenue += (Number(item.price) || 0) * (Number(item.qty) || 1);
     });
-  });
+  };
+  paidToday.forEach(([, t]) => collectItems(t.items));
+  queueToday.forEach(([, q]) => collectItems(q.items));
 
+  const totalCount = paidToday.length + queueToday.length;
   const record = {
     date: dateKey,
     settledAt: Date.now(),
-    tableCount: paidToday.length,
+    tableCount: totalCount,
     revenue,
-    tables: paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) })),
+    tables: [
+      ...paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) })),
+      ...queueToday.map(([, q]) => ({ name: q.tableName, total: q.total, fixed: true }))
+    ],
     itemSales
   };
 
   dbDaily.child(dateKey).set(record)
-    .then(() => Promise.all(paidToday.map(([id]) => dbOrders.child(id).remove())))
+    .then(() => Promise.all([
+      ...paidToday.map(([id]) => dbOrders.child(id).remove()),
+      ...queueToday.map(([id]) => dbDailyQueue.child(id).remove())
+    ]))
     .then(() => {
       document.getElementById('settlementModal').classList.remove('open');
       showToast(`日結完成！今日營業額 $${revenue}`);
