@@ -325,7 +325,9 @@ function renderTodaySection() {
 function renderPaidTablesGrid(paid) {
   const grid = document.getElementById('paidTablesGrid');
   grid.innerHTML = '';
-  if (!paid || paid.length === 0) {
+  const todayQueue = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
+
+  if (paid.length === 0 && todayQueue.length === 0) {
     grid.style.display = 'none';
     showPaidTables = false;
     updateToggleBtn();
@@ -334,6 +336,42 @@ function renderPaidTablesGrid(paid) {
   if (!showPaidTables) return;
   grid.style.display = 'grid';
   paid.forEach(([id, table]) => grid.appendChild(buildTableCard(id, table)));
+  todayQueue.forEach(([, q]) => grid.appendChild(buildQueueCard(q)));
+}
+
+function buildQueueCard(q) {
+  const card = document.createElement('div');
+  card.className = 'table-card status-paid';
+  const items = Object.values(q.items || {});
+  const itemsHtml = items.length === 0
+    ? `<p class="tc-empty-body">無品項記錄</p>`
+    : items.slice(0, 3).map(i => {
+        const lineTotal = (Number(i.price) || 0) * (Number(i.qty) || 1);
+        return `<div class="tc-order-item">
+          <span>${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>
+          <span>${lineTotal > 0 ? '$' + lineTotal : '—'}</span>
+        </div>`;
+      }).join('');
+  card.innerHTML = `
+    <div class="tc-header">
+      <div>
+        <span class="tc-label">固定桌</span>
+        <h3 class="tc-name">${q.tableName}</h3>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="tc-fixed-pin material-symbols-outlined">push_pin</span>
+        <span class="tc-badge">${STATUS_LABEL['paid']}</span>
+      </div>
+    </div>
+    <div class="tc-body">${itemsHtml}</div>
+    <div class="tc-footer">
+      <div class="tc-total-wrap">
+        <span class="tc-total-label">小計</span>
+        <span class="tc-total-amount">${q.total > 0 ? '$' + q.total : '—'}</span>
+      </div>
+    </div>
+  `;
+  return card;
 }
 
 function updateToggleBtn() {
