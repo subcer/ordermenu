@@ -336,12 +336,13 @@ function renderPaidTablesGrid(paid) {
   if (!showPaidTables) return;
   grid.style.display = 'grid';
   paid.forEach(([id, table]) => grid.appendChild(buildTableCard(id, table)));
-  todayQueue.forEach(([, q]) => grid.appendChild(buildQueueCard(q)));
+  todayQueue.forEach(([id, q]) => grid.appendChild(buildQueueCard(id, q)));
 }
 
-function buildQueueCard(q) {
+function buildQueueCard(queueId, q) {
   const card = document.createElement('div');
   card.className = 'table-card status-paid';
+  card.onclick = () => revertQueueEntry(queueId, q);
   const items = Object.values(q.items || {});
   const itemsHtml = items.length === 0
     ? `<p class="tc-empty-body">無品項記錄</p>`
@@ -479,6 +480,37 @@ function buildTableCard(id, table) {
   return card;
 }
 
+function revertQueueEntry(queueId, q) {
+  const tableId = q.tableId || null;
+  const matchEntry = tableId && tables[tableId]
+    ? [tableId, tables[tableId]]
+    : Object.entries(tables).find(([, t]) => t.fixed && t.name === q.tableName && t.status === 'empty');
+
+  if (!matchEntry || matchEntry[1].status !== 'empty') {
+    showConfirm({
+      title: '無法退回',
+      message: `「${q.tableName}」目前已有新客人入座，無法退回訂單。`,
+      danger: false, okLabel: '知道了', icon: 'info'
+    }, () => {});
+    return;
+  }
+
+  const [tId] = matchEntry;
+  showConfirm({
+    title: '退回訂單',
+    message: `將「${q.tableName}」的訂單退回已出餐狀態？`,
+    danger: false, okLabel: '退回', icon: 'undo'
+  }, () => {
+    const updates = {};
+    updates[`cafe_orders/${tId}/status`]  = 'served';
+    updates[`cafe_orders/${tId}/items`]   = q.items || {};
+    if (q.seatedAt) updates[`cafe_orders/${tId}/seatedAt`] = q.seatedAt;
+    updates[`cafe_daily_queue/${queueId}`] = null;
+    firebase.database().ref().update(updates);
+    showToast(`「${q.tableName}」訂單已退回`);
+  });
+}
+
 // ── Table Drag & Drop ──
 let _tableDragId = null;
 
@@ -555,12 +587,14 @@ function updateModalContent(tableId) {
   const isOrdering = table.status === 'ordering';
   const isServed   = table.status === 'served';
   const isEmpty    = table.status === 'empty';
+  const isPaid     = table.status === 'paid';
 
   document.getElementById('btnStartTimer').style.display     = isEmpty    ? '' : 'none';
   document.getElementById('btnMarkServed').style.display     = isOrdering ? '' : 'none';
   document.getElementById('btnLeave').style.display          = isServed   ? '' : 'none';
   document.getElementById('btnMarkPaidVisual').style.display = (isOrdering || isServed) ? '' : 'none';
   document.getElementById('btnTransferTable').style.display  = (isOrdering || isServed) ? '' : 'none';
+  document.getElementById('btnRevertPaid').style.display     = isPaid     ? '' : 'none';
 
   const paidVisualBtn = document.getElementById('btnMarkPaidVisual');
   if (table.paidFlag) paidVisualBtn.classList.add('paid-confirmed');
@@ -1102,9 +1136,11 @@ document.getElementById('btnLeave').addEventListener('click', () => {
     const queueId = 'q_' + Date.now();
     const updates = {};
     updates[`cafe_daily_queue/${queueId}`] = {
+      tableId: activeTableId,
       tableName: table.name,
       total,
       items: table.items || {},
+      seatedAt: table.seatedAt || null,
       completedAt: Date.now()
     };
     updates[`cafe_orders/${activeTableId}`] = {
@@ -1132,6 +1168,24 @@ document.getElementById('btnToggleFixed').addEventListener('click', () => {
   const nowFixed = !table.fixed;
   dbOrders.child(activeTableId).update({ fixed: nowFixed });
   showToast(nowFixed ? `「${table.name}」設為固定桌` : `「${table.name}」已取消固定`);
+});
+
+document.getElementById('btnRevertPaid').addEventListener('click', () => {
+  const table = tables[activeTableId];
+  if (!table) return;
+  showConfirm({
+    title: '退回桌況',
+    message: `將「${table.name}」從已結帳退回已出餐？`,
+    danger: false, okLabel: '退回', icon: 'undo'
+  }, () => {
+    dbOrders.child(activeTableId).update({
+      status: 'served',
+      paidAt: null,
+      paidTotal: null,
+      paidFlag: false
+    });
+    showToast(`「${table.name}」已退回已出餐`);
+  });
 });
 
 document.getElementById('btnDeleteTable').addEventListener('click', () => {

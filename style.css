@@ -1700,6 +1700,17 @@ body {
   flex-shrink: 0;
 }
 
+.btn-revert-paid {
+  background: var(--surface-mid);
+  color: var(--text-sub);
+  border: 1.5px solid var(--border);
+}
+.btn-revert-paid:hover {
+  background: var(--orange-light);
+  color: var(--orange);
+  border-color: var(--orange);
+}
+
 .settlement-fixed-tag {
   display: inline-block;
   margin-left: 6px;
