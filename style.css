@@ -1700,6 +1700,28 @@ body {
   flex-shrink: 0;
 }
 
+.menu-category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.menu-cat-chip {
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  background: var(--surface-mid);
+  color: var(--text-sub);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.menu-cat-chip:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .btn-revert-paid {
   background: var(--surface-mid);
   color: var(--text-sub);

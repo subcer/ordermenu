@@ -1461,6 +1461,13 @@ function syncCategoryDatalist() {
   const existing = new Set(['咖啡','茶飲','甜點','輕食','其他']);
   Object.values(menuItems).forEach(i => { if (i.category) existing.add(i.category); });
   dl.innerHTML = [...existing].map(c => `<option value="${c}">`).join('');
+
+  const chipsEl = document.getElementById('menuCategoryChips');
+  if (!chipsEl) return;
+  chipsEl.innerHTML = [...existing].map(cat => {
+    const safe = cat.replace(/'/g, '&#39;');
+    return `<button type="button" class="chip menu-cat-chip" onclick="document.getElementById('inputMenuCategory').value='${safe}'">${cat}</button>`;
+  }).join('');
 }
 
 function renderMenuItemsList() {
@@ -1599,6 +1606,7 @@ function startEditMenuItem(id) {
       <input class="menu-edit-price" id="editPrice-${id}" type="number" value="${item.price || ''}" placeholder="定價">
       <input class="menu-edit-cat-input" id="editCat-${id}" value="${item.category || ''}" placeholder="分類" list="${editListId}" autocomplete="off">
       ${datalistHtml}
+      <div class="menu-category-chips" id="editCatChips-${id}"></div>
       <input class="menu-edit-input menu-edit-alias" id="editAlias-${id}" value="${(item.voiceAliases || item.voiceAlias ? (item.voiceAliases || [item.voiceAlias]).join('、') : '')}" placeholder="語音別名（可多個，用逗號分隔，如：和服紗、河芙莎）">
     </div>
     <div class="edit-options-section" id="editOptions-${id}"></div>
@@ -1613,6 +1621,16 @@ function startEditMenuItem(id) {
   `;
   document.getElementById(`editName-${id}`).focus();
   renderEditOptionsUI(id);
+
+  const editCatChips = document.getElementById(`editCatChips-${id}`);
+  if (editCatChips) {
+    const cats = new Set(['咖啡','茶飲','甜點','輕食','其他']);
+    Object.values(menuItems).forEach(i => { if (i.category) cats.add(i.category); });
+    editCatChips.innerHTML = [...cats].map(cat => {
+      const safe = cat.replace(/'/g, '&#39;');
+      return `<button type="button" class="chip menu-cat-chip" onclick="document.getElementById('editCat-${id}').value='${safe}'">${cat}</button>`;
+    }).join('');
+  }
 }
 
 function renderEditOptionsUI(id) {
