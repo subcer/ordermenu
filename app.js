@@ -23,8 +23,10 @@ let tables          = {};
 let menuItems       = {};
 let customModifiers = [];
 let tablePresets    = ['桌1','桌2','桌3','桌4','桌5','吧台','戶外A','外帶'];
+let menuCategories  = ['咖啡','茶飲','甜點','輕食','其他'];
 let waitlist        = {};
 let dailyQueue      = {};
+let _catEditMode    = false;
 let activeTableId   = null;
 let showPaidTables  = false;
 
@@ -61,6 +63,11 @@ firebase.auth().onAuthStateChanged(user => {
         if (val) tablePresets = Array.isArray(val) ? val : Object.values(val);
         renderTablePresets();
       });
+      dbSettings.child('menuCategories').on('value', snap => {
+        const val = snap.val();
+        if (val) menuCategories = Array.isArray(val) ? val : Object.values(val);
+        syncCategoryDatalist();
+      });
       dbWaitlist.on('value', snap => {
         waitlist = snap.val() || {};
         renderWaitlist();
@@ -81,6 +88,7 @@ firebase.auth().onAuthStateChanged(user => {
       dbWaitlist.off();
       dbDailyQueue.off();
       tables = {}; menuItems = {}; customModifiers = []; waitlist = {}; dailyQueue = {};
+      menuCategories = ['咖啡','茶飲','甜點','輕食','其他'];
     }
   }
 });
@@ -1458,17 +1466,63 @@ function deleteMenuItem(id) {
 function syncCategoryDatalist() {
   const dl = document.getElementById('categoryList');
   if (!dl) return;
-  const existing = new Set(['咖啡','茶飲','甜點','輕食','其他']);
-  Object.values(menuItems).forEach(i => { if (i.category) existing.add(i.category); });
-  dl.innerHTML = [...existing].map(c => `<option value="${c}">`).join('');
-
-  const chipsEl = document.getElementById('menuCategoryChips');
-  if (!chipsEl) return;
-  chipsEl.innerHTML = [...existing].map(cat => {
-    const safe = cat.replace(/'/g, '&#39;');
-    return `<button type="button" class="chip menu-cat-chip" onclick="document.getElementById('inputMenuCategory').value='${safe}'">${cat}</button>`;
-  }).join('');
+  const allCats = new Set(menuCategories);
+  Object.values(menuItems).forEach(i => { if (i.category) allCats.add(i.category); });
+  dl.innerHTML = [...allCats].map(c => `<option value="${c}">`).join('');
+  renderCategoryChips(allCats);
 }
+
+function renderCategoryChips(allCats) {
+  const chipsEl = document.getElementById('menuCategoryChips');
+  const editBtn  = document.getElementById('btnEditCategories');
+  if (!chipsEl) return;
+
+  if (_catEditMode) {
+    if (editBtn) editBtn.innerHTML = '<span class="material-symbols-outlined">check</span>';
+    chipsEl.innerHTML = [...allCats].map(cat => {
+      const safe = cat.replace(/'/g, '&#39;');
+      return `<span class="chip chip-editable">${cat}<button class="chip-del" onclick="deleteCategoryChip('${safe}')" title="刪除">×</button></span>`;
+    }).join('') + `
+      <div class="preset-add-row">
+        <input class="preset-add-input" id="inputNewCategory" placeholder="新增分類" maxlength="10" autocomplete="off">
+        <button class="btn-preset-add" id="btnAddCategory"><span class="material-symbols-outlined">add</span></button>
+      </div>`;
+    document.getElementById('btnAddCategory')?.addEventListener('click', addCategoryChip);
+    document.getElementById('inputNewCategory')?.addEventListener('keydown', e => { if (e.key === 'Enter') addCategoryChip(); });
+  } else {
+    if (editBtn) editBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+    chipsEl.innerHTML = [...allCats].map(cat => {
+      const safe = cat.replace(/'/g, '&#39;');
+      return `<button type="button" class="chip menu-cat-chip" onclick="document.getElementById('inputMenuCategory').value='${safe}'">${cat}</button>`;
+    }).join('');
+  }
+}
+
+function addCategoryChip() {
+  const input = document.getElementById('inputNewCategory');
+  const val = input?.value.trim();
+  if (!val) return;
+  if (!menuCategories.includes(val)) {
+    menuCategories = [...menuCategories, val];
+    saveMenuCategories();
+  }
+  input.value = '';
+  input.focus();
+}
+
+function deleteCategoryChip(cat) {
+  menuCategories = menuCategories.filter(c => c !== cat);
+  saveMenuCategories();
+}
+
+function saveMenuCategories() {
+  dbSettings.child('menuCategories').set(menuCategories);
+}
+
+document.getElementById('btnEditCategories').addEventListener('click', () => {
+  _catEditMode = !_catEditMode;
+  syncCategoryDatalist();
+});
 
 function renderMenuItemsList() {
   syncCategoryDatalist();
@@ -1624,7 +1678,7 @@ function startEditMenuItem(id) {
 
   const editCatChips = document.getElementById(`editCatChips-${id}`);
   if (editCatChips) {
-    const cats = new Set(['咖啡','茶飲','甜點','輕食','其他']);
+    const cats = new Set(menuCategories);
     Object.values(menuItems).forEach(i => { if (i.category) cats.add(i.category); });
     editCatChips.innerHTML = [...cats].map(cat => {
       const safe = cat.replace(/'/g, '&#39;');
