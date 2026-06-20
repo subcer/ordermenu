@@ -27,6 +27,7 @@ let menuCategories  = ['咖啡','茶飲','甜點','輕食','其他'];
 let waitlist        = {};
 let dailyQueue      = {};
 let _catEditMode    = false;
+let tableSortMode   = 'manual'; // 'manual' | 'timer'
 let activeTableId   = null;
 let showPaidTables  = false;
 
@@ -67,6 +68,12 @@ firebase.auth().onAuthStateChanged(user => {
         const val = snap.val();
         if (val) menuCategories = Array.isArray(val) ? val : Object.values(val);
         syncCategoryDatalist();
+      });
+      dbSettings.child('tableSortMode').on('value', snap => {
+        const val = snap.val();
+        tableSortMode = val === 'timer' ? 'timer' : 'manual';
+        updateSortModeBtn();
+        renderTables();
       });
       dbWaitlist.on('value', snap => {
         waitlist = snap.val() || {};
@@ -405,10 +412,47 @@ document.getElementById('btnTogglePaid').addEventListener('click', () => {
   renderPaidTablesGrid(paid);
 });
 
+// ── Table Sort Mode ──
+function updateSortModeBtn() {
+  const btn   = document.getElementById('btnSortMode');
+  const icon  = document.getElementById('sortModeIcon');
+  const label = document.getElementById('sortModeLabel');
+  if (!btn) return;
+  if (tableSortMode === 'timer') {
+    btn.classList.add('active');
+    icon.textContent = 'timer';
+    label.textContent = '計時排序';
+  } else {
+    btn.classList.remove('active');
+    icon.textContent = 'drag_indicator';
+    label.textContent = '手動排序';
+  }
+}
+
+document.getElementById('btnSortMode').addEventListener('click', () => {
+  tableSortMode = tableSortMode === 'manual' ? 'timer' : 'manual';
+  dbSettings.child('tableSortMode').set(tableSortMode);
+  updateSortModeBtn();
+  renderTables();
+  showToast(tableSortMode === 'timer' ? '已切換為計時排序（最久未處理在前）' : '已切換為手動拖曳排序');
+});
+
 // ── Render Tables ──
 function renderTables() {
   const grid = document.getElementById('tablesGrid');
-  const sorted = Object.entries(tables).sort((a, b) => a[1].order - b[1].order);
+  let sorted;
+  if (tableSortMode === 'timer') {
+    sorted = Object.entries(tables).sort((a, b) => {
+      const aMin = elapsedMinutes(a[1].seatedAt);
+      const bMin = elapsedMinutes(b[1].seatedAt);
+      if (aMin === null && bMin === null) return (a[1].order ?? 0) - (b[1].order ?? 0);
+      if (aMin === null) return 1;
+      if (bMin === null) return -1;
+      return bMin - aMin;
+    });
+  } else {
+    sorted = Object.entries(tables).sort((a, b) => a[1].order - b[1].order);
+  }
   const visible = sorted.filter(([, t]) => t.status !== 'paid');
   grid.innerHTML = '';
 
@@ -433,11 +477,13 @@ function buildTableCard(id, table) {
   const paidFlagClass = table.paidFlag ? ` paid-flag-${table.status}` : '';
   card.className = `table-card status-${table.status}${paidFlagClass}`;
   card.id = `tcard-${id}`;
-  card.draggable = true;
-  card.ondragstart = e => tableDragStart(e, id);
-  card.ondragover  = e => tableDragOver(e, id);
-  card.ondrop      = e => tableDrop(e, id);
-  card.ondragend   = () => tableDragEnd();
+  card.draggable = tableSortMode === 'manual';
+  if (tableSortMode === 'manual') {
+    card.ondragstart = e => tableDragStart(e, id);
+    card.ondragover  = e => tableDragOver(e, id);
+    card.ondrop      = e => tableDrop(e, id);
+    card.ondragend   = () => tableDragEnd();
+  }
   card.onclick = () => openTableModal(id);
 
   const items = Object.values(table.items || {});
