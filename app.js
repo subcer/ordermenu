@@ -1976,6 +1976,11 @@ document.getElementById('btnMonthly').addEventListener('click', () => setReportM
 document.getElementById('btnCustomRange').addEventListener('click', () => setReportMode('custom'));
 document.getElementById('btnRanking').addEventListener('click', () => setReportMode('ranking'));
 document.getElementById('btnApplyDateRange').addEventListener('click', loadAndRenderReport);
+document.getElementById('btnClearDateRange').addEventListener('click', () => {
+  document.getElementById('inputDateStart').value = '';
+  document.getElementById('inputDateEnd').value   = '';
+  loadAndRenderReport();
+});
 
 let _rankingSortBy = 'qty';
 document.getElementById('btnSortQty').addEventListener('click', () => {
@@ -1997,8 +2002,9 @@ function setReportMode(mode) {
   document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
   document.getElementById('btnCustomRange').classList.toggle('active', mode === 'custom');
   document.getElementById('btnRanking').classList.toggle('active', mode === 'ranking');
-  document.getElementById('reportDateRange').style.display = mode === 'custom' ? 'flex' : 'none';
   const isRanking = mode === 'ranking';
+  document.getElementById('reportDateRange').style.display    = (mode === 'custom' || isRanking) ? 'flex' : 'none';
+  document.getElementById('btnClearDateRange').style.display  = isRanking ? '' : 'none';
   document.getElementById('rankingWrap').style.display        = isRanking ? 'block' : 'none';
   document.querySelector('.report-summary').style.display     = isRanking ? 'none'  : '';
   document.querySelector('.report-chart-wrap').style.display  = isRanking ? 'none'  : '';
@@ -2017,9 +2023,17 @@ function openReport() {
 
 function loadAndRenderReport() {
   if (_reportMode === 'ranking') {
-    dbDaily.orderByKey().limitToLast(90).once('value', snap => {
-      renderRankingReport(Object.values(snap.val() || {}));
-    });
+    const start = document.getElementById('inputDateStart').value;
+    const end   = document.getElementById('inputDateEnd').value;
+    if (start && end && start <= end) {
+      dbDaily.orderByKey().startAt(start).endAt(end).once('value', snap => {
+        renderRankingReport(Object.values(snap.val() || {}), `${start} ～ ${end}`);
+      });
+    } else {
+      dbDaily.orderByKey().limitToLast(90).once('value', snap => {
+        renderRankingReport(Object.values(snap.val() || {}), '近 90 天（未篩選日期）');
+      });
+    }
     return;
   }
   if (_reportMode === 'custom') {
@@ -2041,7 +2055,8 @@ function loadAndRenderReport() {
   });
 }
 
-function renderRankingReport(records) {
+function renderRankingReport(records, periodLabel) {
+  document.getElementById('rankingPeriodLabel').textContent = `統計區間：${periodLabel}`;
   const totals = {};
   records.forEach(rec => {
     if (!rec.itemSales) return;

@@ -1459,6 +1459,7 @@ body {
 
 /* ── Ranking ── */
 .ranking-wrap { padding: 4px 0 8px; }
+.ranking-wrap .report-period-label { margin-bottom: 10px; }
 .ranking-sort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .ranking-sort-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
 .ranking-sort-btn {

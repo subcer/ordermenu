@@ -665,6 +665,9 @@
         <button class="btn-primary-sm" id="btnApplyDateRange" title="查詢">
           <span class="material-symbols-outlined">search</span>
         </button>
+        <button class="btn-icon-sm" id="btnClearDateRange" title="清除日期，改用近 90 天" style="display:none">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
 
       <div class="report-summary">
@@ -690,6 +693,7 @@
       </div>
 
       <div class="ranking-wrap" id="rankingWrap" style="display:none">
+        <p class="report-period-label" id="rankingPeriodLabel"></p>
         <div class="ranking-sort-row">
           <span class="ranking-sort-label">排序</span>
           <button class="ranking-sort-btn active" id="btnSortQty">杯數</button>
@@ -704,6 +708,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20260605"></script>
+  <script src="app.js?v=20260620"></script>
 </body>
 </html>
