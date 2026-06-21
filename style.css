@@ -371,6 +371,28 @@ body {
 .modal-sm  { max-width: 440px; }
 .modal-menu{ max-width: 580px; }
 
+/* 點餐 Modal：操作按鈕固定在底部，中間內容區獨立滾動，平板上不用滑到最下面才看到按鈕 */
+.modal.modal-order {
+  display: flex; flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.modal-order .modal-header { padding: 20px 20px 0; flex-shrink: 0; }
+.modal-order .modal-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  padding: 0 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.modal-order .modal-actions {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 20px 24px;
+  border-top: 1px solid var(--border-faint);
+  background: var(--surface);
+}
+
 /* 橫式 / 平板高度不足時：改為置中，避免內容超出畫面 */
 @media (orientation: landscape) and (max-height: 768px) {
   .modal-overlay {

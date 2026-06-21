@@ -618,6 +618,7 @@ function openTableModal(tableId) {
   clearVoiceResult();
   document.getElementById('voiceSection').classList.remove('recording');
   document.getElementById('tableModal').classList.add('open');
+  document.getElementById('modalBody').scrollTop = 0;
   updateModalContent(tableId);
 }
 

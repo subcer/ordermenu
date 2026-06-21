@@ -213,7 +213,7 @@
        餐桌詳情 Modal
   ══════════════════════════════════════ -->
   <div class="modal-overlay" id="tableModal">
-    <div class="modal">
+    <div class="modal modal-order">
 
       <!-- Modal Header -->
       <div class="modal-header">
@@ -225,6 +225,8 @@
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
+
+      <div class="modal-body" id="modalBody">
 
       <!-- Status Flow -->
       <div class="status-flow">
@@ -333,6 +335,8 @@
           </button>
         </div>
         <input type="text" id="inputItemNote" class="input-field input-note" placeholder="備註（少糖、去冰…）" autocomplete="off">
+      </div>
+
       </div>
 
       <!-- Action Buttons -->
@@ -708,6 +712,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20260621c"></script>
+  <script src="app.js?v=20260621d"></script>
 </body>
 </html>
