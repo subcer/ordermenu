@@ -541,7 +541,7 @@ function buildTableCard(id, table) {
       <div class="tc-total-wrap">
         <span class="tc-total-label">小計</span>
         <span class="tc-total-amount">${total > 0 ? '$' + total : '—'}</span>
-        ${partialPaid ? `<span class="tc-partial-note">已收 $${paidAmount}</span>` : ''}
+        ${partialPaid ? `<span class="tc-partial-note">已收 $${paidAmount}・待收 $${total - paidAmount}</span>` : ''}
       </div>
       <div class="tc-footer-right">
         ${items.length > 0 ? `<span class="tc-progress">✓ ${doneCount}/${items.length}</span>` : ''}
