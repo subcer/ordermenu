@@ -1223,6 +1223,32 @@ body {
   border-color: var(--primary);
   color: var(--primary);
 }
+.option-picker-qty-row {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 4px 24px 14px;
+}
+.option-picker-qty-label { font-size: 0.82rem; font-weight: 700; color: var(--text-sub); }
+.qty-stepper {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface-low);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 6px;
+}
+.qty-stepper-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%; border: none;
+  background: var(--surface); color: var(--primary);
+  font-size: 1.1rem; font-weight: 800;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.qty-stepper-btn:hover { background: var(--primary-light); }
+.qty-stepper-value {
+  min-width: 24px; text-align: center;
+  font-family: 'Manrope', sans-serif; font-size: 1rem; font-weight: 800; color: var(--text);
+}
+
 .option-picker-actions {
   display: flex; gap: 10px;
   padding: 14px 24px 20px;

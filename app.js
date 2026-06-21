@@ -846,9 +846,19 @@ function renderMenuPicker() {
 
 // ── Option Picker Modal ──
 let _pendingOptionItem = null;
+let _pendingOptionQty = 1;
+
+function setOptionQty(qty) {
+  _pendingOptionQty = Math.min(99, Math.max(1, qty));
+  document.getElementById('optQtyValue').textContent = _pendingOptionQty;
+}
+
+document.getElementById('btnOptQtyMinus').addEventListener('click', () => setOptionQty(_pendingOptionQty - 1));
+document.getElementById('btnOptQtyPlus').addEventListener('click', () => setOptionQty(_pendingOptionQty + 1));
 
 function openOptionPicker(item, opts) {
   _pendingOptionItem = item;
+  setOptionQty(1);
   document.getElementById('optionPickerTitle').textContent = item.name;
 
   const content = document.getElementById('optionPickerContent');
@@ -894,13 +904,13 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
   if (!table.items) table.items = {};
   const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   table.items[itemId] = {
-    name: item.name, qty: 1, price: item.price || 0,
+    name: item.name, qty: _pendingOptionQty, price: item.price || 0,
     note: chosen.join('、'), done: false, paid: false
   };
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   else if (table.status === 'served') { table.status = 'ordering'; }
   dbOrders.child(activeTableId).set(table);
-  showToast(`已加入「${item.name}」${chosen.length ? '（' + chosen.join('、') + '）' : ''}`);
+  showToast(`已加入「${item.name}」${_pendingOptionQty > 1 ? ' ×' + _pendingOptionQty : ''}${chosen.length ? '（' + chosen.join('、') + '）' : ''}`);
   closeOptionPicker();
 });
 
