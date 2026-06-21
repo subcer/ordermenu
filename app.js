@@ -160,6 +160,21 @@ function paidSummary(table) {
   };
 }
 
+// 加點時若訂單已有同名稱/同價格/同備註且尚未出餐的品項，直接累加數量，
+// 不要開新的一行；已出餐/已收款的品項視為「上一輪」，不會被合併進去
+function addOrIncrementItem(table, { name, price, note, qty }) {
+  if (!table.items) table.items = {};
+  const existing = Object.values(table.items).find(i =>
+    i.name === name && Number(i.price) === Number(price) && (i.note || '') === (note || '') && !i.done
+  );
+  if (existing) {
+    existing.qty = (Number(existing.qty) || 1) + qty;
+  } else {
+    const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    table.items[itemId] = { name, qty, price, note: note || '', done: false, paid: false };
+  }
+}
+
 // ── Table Timers ──
 const _alertedTables = new Set();
 
@@ -771,10 +786,7 @@ function addItem() {
   if (!name || !activeTableId) return;
 
   const table = tables[activeTableId];
-  if (!table.items) table.items = {};
-
-  const itemId = 'item_' + Date.now();
-  table.items[itemId] = { name, qty, note, done: false, paid: false, price };
+  addOrIncrementItem(table, { name, price, note, qty });
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   // 已出餐後加點 → 退回點餐中
   else if (table.status === 'served') { table.status = 'ordering'; }
@@ -901,12 +913,10 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
   }).filter(Boolean);
 
   const table = tables[activeTableId];
-  if (!table.items) table.items = {};
-  const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-  table.items[itemId] = {
-    name: item.name, qty: _pendingOptionQty, price: item.price || 0,
-    note: chosen.join('、'), done: false, paid: false
-  };
+  addOrIncrementItem(table, {
+    name: item.name, price: item.price || 0,
+    note: chosen.join('、'), qty: _pendingOptionQty
+  });
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   else if (table.status === 'served') { table.status = 'ordering'; }
   dbOrders.child(activeTableId).set(table);
@@ -1180,11 +1190,9 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
   if (!activeTableId || voiceParsedItems.length === 0) return;
 
   const table = tables[activeTableId];
-  if (!table.items) table.items = {};
 
   voiceParsedItems.forEach(item => {
-    const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    table.items[itemId] = { name: item.name, qty: item.qty, note: item.note, done: false, paid: false, price: item.price };
+    addOrIncrementItem(table, { name: item.name, price: item.price, note: item.note, qty: item.qty });
   });
 
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
