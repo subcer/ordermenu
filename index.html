@@ -310,10 +310,13 @@
 
       <!-- Total Bar -->
       <div class="order-total" id="orderTotal" style="display:none">
-        <span class="order-total-label">
-          <span class="material-symbols-outlined">receipt</span> 小計
-        </span>
-        <span class="order-total-amount" id="orderTotalAmount">$0</span>
+        <div class="order-total-row">
+          <span class="order-total-label">
+            <span class="material-symbols-outlined">receipt</span> 小計
+          </span>
+          <span class="order-total-amount" id="orderTotalAmount">$0</span>
+        </div>
+        <span class="order-paid-note" id="orderPaidNote" style="display:none"></span>
       </div>
 
       <!-- Add Item Form -->
@@ -712,6 +715,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20260621d"></script>
+  <script src="app.js?v=20260621e"></script>
 </body>
 </html>

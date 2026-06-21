@@ -27,6 +27,8 @@
   --orange-light:     #fff3e0;
   --red:              #ba1a1a;
   --red-light:        #ffebee;
+  --blue:             #2563a8;
+  --blue-light:       #e6f0fa;
 
   --shadow-sm: 0 2px 8px rgba(26, 28, 26, 0.06);
   --shadow-md: 0 4px 20px rgba(45, 41, 38, 0.08);
@@ -641,6 +643,7 @@ body {
 .order-item:hover { border-color: var(--border); }
 .order-item.done { opacity: 0.55; }
 .order-item.done .order-item-name { text-decoration: line-through; }
+.order-item.paid { background: var(--blue-light); }
 
 .order-item-info { flex: 1; min-width: 0; }
 .order-item-name { font-size: 0.88rem; font-weight: 700; display: block; }
@@ -663,6 +666,16 @@ body {
 .order-item.done .btn-done-item { background: var(--green); border-color: var(--green); color: #fff; }
 .btn-done-item .fa-check { font-size: 0.7rem; }
 
+.btn-paid-item {
+  background: none; border: 2px solid var(--border);
+  border-radius: 50%; width: 28px; height: 28px;
+  cursor: pointer; color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; flex-shrink: 0;
+  font-size: 0.8rem;
+}
+.order-item.paid .btn-paid-item { background: var(--blue); border-color: var(--blue); color: #fff; }
+
 .btn-del-item {
   background: none; border: none; cursor: pointer;
   color: var(--border); font-size: 0.85rem; padding: 4px;
@@ -675,19 +688,21 @@ body {
    Total Bar
 ══════════════════════════════════════════ */
 .order-total {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; flex-direction: column; gap: 4px;
   background: var(--primary-faint);
   border: 1.5px solid rgba(152,66,21,0.15);
   border-radius: var(--radius-xs);
   padding: 10px 14px;
   margin: 10px 0 4px;
 }
+.order-total-row { display: flex; align-items: center; justify-content: space-between; }
 .order-total-label {
   display: flex; align-items: center; gap: 6px;
   font-size: 0.78rem; font-weight: 700; color: var(--primary);
 }
 .order-total-label .material-symbols-outlined { font-size: 1rem; }
 .order-total-amount { font-family: 'Manrope', sans-serif; font-size: 1.2rem; font-weight: 900; color: var(--primary); }
+.order-paid-note { font-size: 0.72rem; font-weight: 700; color: var(--blue); }
 
 /* ══════════════════════════════════════════
    Add Item Form
@@ -808,6 +823,14 @@ body {
   border-top: 3px solid #0d9488 !important;
   background: #f0fdfa;
 }
+
+/* 部分收款（只有部分品項已收）：跟全額已收用不同顏色區分 */
+.partial-paid-ordering,
+.partial-paid-served {
+  border-top: 3px solid var(--blue) !important;
+  background: var(--blue-light);
+}
+.tc-partial-note { font-size: 0.62rem; font-weight: 700; color: var(--blue); display: block; margin-top: 1px; }
 
 .transfer-hint { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
 .transfer-table-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; }

@@ -144,6 +144,22 @@ function calcTotal(table) {
   }, 0);
 }
 
+// 品項層級收款統計：新增品項預設未收，不影響已收的舊品項
+function paidSummary(table) {
+  const items = Object.values(table.items || {});
+  let total = 0, paidAmount = 0;
+  items.forEach(item => {
+    const lineTotal = (Number(item.price) || 0) * (Number(item.qty) || 1);
+    total += lineTotal;
+    if (item.paid) paidAmount += lineTotal;
+  });
+  return {
+    total, paidAmount,
+    allPaid: items.length > 0 && paidAmount === total,
+    anyPaid: paidAmount > 0
+  };
+}
+
 // ── Table Timers ──
 const _alertedTables = new Set();
 
@@ -474,8 +490,10 @@ function renderTables() {
 
 function buildTableCard(id, table) {
   const card = document.createElement('div');
-  const paidFlagClass = table.paidFlag ? ` paid-flag-${table.status}` : '';
-  card.className = `table-card status-${table.status}${paidFlagClass}`;
+  const { total, paidAmount, allPaid, anyPaid } = paidSummary(table);
+  const partialPaid = anyPaid && !allPaid;
+  const paidStateClass = allPaid ? ` paid-flag-${table.status}` : partialPaid ? ` partial-paid-${table.status}` : '';
+  card.className = `table-card status-${table.status}${paidStateClass}`;
   card.id = `tcard-${id}`;
   card.draggable = tableSortMode === 'manual';
   if (tableSortMode === 'manual') {
@@ -488,7 +506,6 @@ function buildTableCard(id, table) {
 
   const items = Object.values(table.items || {});
   const doneCount = items.filter(i => i.done).length;
-  const total = calcTotal(table);
 
   const itemsHtml = items.length === 0
     ? `<p class="tc-empty-body">尚無訂單</p>`
@@ -514,7 +531,7 @@ function buildTableCard(id, table) {
       <div style="display:flex;align-items:center;gap:6px">
         ${table.fixed ? '<span class="tc-fixed-pin material-symbols-outlined" title="固定桌">push_pin</span>' : ''}
         <span class="tc-drag-handle material-symbols-outlined">drag_indicator</span>
-        ${table.paidFlag && table.status !== 'served'
+        ${allPaid && table.status !== 'served'
           ? `<span class="tc-badge tc-badge-paid-flag ${table.status}">✓ 已收款</span>`
           : `<span class="tc-badge">${STATUS_LABEL[table.status]}</span>`}
       </div>
@@ -524,6 +541,7 @@ function buildTableCard(id, table) {
       <div class="tc-total-wrap">
         <span class="tc-total-label">小計</span>
         <span class="tc-total-amount">${total > 0 ? '$' + total : '—'}</span>
+        ${partialPaid ? `<span class="tc-partial-note">已收 $${paidAmount}</span>` : ''}
       </div>
       <div class="tc-footer-right">
         ${items.length > 0 ? `<span class="tc-progress">✓ ${doneCount}/${items.length}</span>` : ''}
@@ -652,8 +670,8 @@ function updateModalContent(tableId) {
   document.getElementById('btnRevertPaid').style.display     = isPaid     ? '' : 'none';
 
   const paidVisualBtn = document.getElementById('btnMarkPaidVisual');
-  if (table.paidFlag) paidVisualBtn.classList.add('paid-confirmed');
-  else                paidVisualBtn.classList.remove('paid-confirmed');
+  if (paidSummary(table).allPaid) paidVisualBtn.classList.add('paid-confirmed');
+  else                            paidVisualBtn.classList.remove('paid-confirmed');
 
   const fixedBtn = document.getElementById('btnToggleFixed');
   if (table.fixed) fixedBtn.classList.add('is-fixed');
@@ -672,7 +690,7 @@ function renderOrderItems(table) {
   list.innerHTML = '';
   items.forEach(([itemId, item]) => {
     const el = document.createElement('div');
-    el.className = `order-item${item.done ? ' done' : ''}`;
+    el.className = `order-item${item.done ? ' done' : ''}${item.paid ? ' paid' : ''}`;
     const lineTotal = (Number(item.price) || 0) * (Number(item.qty) || 1);
     el.innerHTML = `
       <button class="btn-done-item" onclick="toggleItemDone('${itemId}')">
@@ -686,6 +704,9 @@ function renderOrderItems(table) {
         <span class="order-item-qty">×${item.qty}</span>
         <span class="order-item-line-price">${lineTotal > 0 ? '$' + lineTotal : '—'}</span>
       </div>
+      <button class="btn-paid-item" onclick="toggleItemPaid('${itemId}')" title="收款">
+        <i class="fa-solid fa-dollar-sign"></i>
+      </button>
       <button class="btn-del-item" onclick="deleteItem('${itemId}')">
         <i class="fa-solid fa-xmark"></i>
       </button>
@@ -695,12 +716,19 @@ function renderOrderItems(table) {
 }
 
 function updateTotalBar(table) {
-  const total = calcTotal(table);
+  const { total, paidAmount, allPaid, anyPaid } = paidSummary(table);
   const bar = document.getElementById('orderTotal');
+  const note = document.getElementById('orderPaidNote');
   const items = Object.values(table.items || {});
   if (items.length > 0) {
     bar.style.display = 'flex';
     document.getElementById('orderTotalAmount').textContent = total > 0 ? '$' + total : '—';
+    if (anyPaid && !allPaid) {
+      note.style.display = '';
+      note.textContent = `已收 $${paidAmount}・待收 $${total - paidAmount}`;
+    } else {
+      note.style.display = 'none';
+    }
   } else {
     bar.style.display = 'none';
   }
@@ -713,6 +741,13 @@ function toggleItemDone(itemId) {
   // 全部打勾時自動變已出餐
   const allDone = Object.values(table.items).every(i => i.done);
   if (allDone && table.status === 'ordering') table.status = 'served';
+  dbOrders.child(activeTableId).set(table);
+}
+
+function toggleItemPaid(itemId) {
+  const table = tables[activeTableId];
+  if (!table?.items?.[itemId]) return;
+  table.items[itemId].paid = !table.items[itemId].paid;
   dbOrders.child(activeTableId).set(table);
 }
 
@@ -739,7 +774,7 @@ function addItem() {
   if (!table.items) table.items = {};
 
   const itemId = 'item_' + Date.now();
-  table.items[itemId] = { name, qty, note, done: false, price };
+  table.items[itemId] = { name, qty, note, done: false, paid: false, price };
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   // 已出餐後加點 → 退回點餐中
   else if (table.status === 'served') { table.status = 'ordering'; }
@@ -860,7 +895,7 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
   const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   table.items[itemId] = {
     name: item.name, qty: 1, price: item.price || 0,
-    note: chosen.join('、'), done: false
+    note: chosen.join('、'), done: false, paid: false
   };
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   else if (table.status === 'served') { table.status = 'ordering'; }
@@ -1139,7 +1174,7 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
 
   voiceParsedItems.forEach(item => {
     const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    table.items[itemId] = { name: item.name, qty: item.qty, note: item.note, done: false, price: item.price };
+    table.items[itemId] = { name: item.name, qty: item.qty, note: item.note, done: false, paid: false, price: item.price };
   });
 
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
@@ -1175,46 +1210,58 @@ document.getElementById('btnMarkServed').addEventListener('click', () => {
 
 document.getElementById('btnMarkPaidVisual').addEventListener('click', () => {
   const table = tables[activeTableId];
-  if (!table) return;
-  const nowPaid = !table.paidFlag;
-  dbOrders.child(activeTableId).update({ paidFlag: nowPaid });
-  showToast(nowPaid ? '✓ 已確認收款' : '已取消收款確認');
+  if (!table || !table.items) return;
+  const nowPaid = !paidSummary(table).allPaid;
+  Object.values(table.items).forEach(item => { item.paid = nowPaid; });
+  dbOrders.child(activeTableId).set(table);
+  showToast(nowPaid ? '✓ 已確認全部收款' : '已取消收款確認');
 });
 
 document.getElementById('btnLeave').addEventListener('click', () => {
   const table = tables[activeTableId];
   if (!table) return;
-  const total = calcTotal(table);
-  _alertedTables.delete(activeTableId);
+  const { total, paidAmount, allPaid } = paidSummary(table);
 
-  if (table.fixed) {
-    const queueId = 'q_' + Date.now();
-    const updates = {};
-    updates[`cafe_daily_queue/${queueId}`] = {
-      tableId: activeTableId,
-      tableName: table.name,
-      total,
-      items: table.items || {},
-      seatedAt: table.seatedAt || null,
-      completedAt: Date.now()
-    };
-    updates[`cafe_orders/${activeTableId}`] = {
-      name: table.name,
-      status: 'empty',
-      order: table.order,
-      fixed: true
-    };
-    firebase.database().ref().update(updates);
-    showToast(`客人離開（固定桌），共 $${total}`);
+  const doLeave = () => {
+    _alertedTables.delete(activeTableId);
+    if (table.fixed) {
+      const queueId = 'q_' + Date.now();
+      const updates = {};
+      updates[`cafe_daily_queue/${queueId}`] = {
+        tableId: activeTableId,
+        tableName: table.name,
+        total,
+        items: table.items || {},
+        seatedAt: table.seatedAt || null,
+        completedAt: Date.now()
+      };
+      updates[`cafe_orders/${activeTableId}`] = {
+        name: table.name,
+        status: 'empty',
+        order: table.order,
+        fixed: true
+      };
+      firebase.database().ref().update(updates);
+      showToast(`客人離開（固定桌），共 $${total}`);
+    } else {
+      table.status    = 'paid';
+      table.paidAt    = Date.now();
+      table.paidTotal = total;
+      dbOrders.child(activeTableId).set(table);
+      showToast(`客人離開，共 $${total}`);
+    }
+    closeTableModal();
+  };
+
+  if (!allPaid && total > 0) {
+    showConfirm({
+      title: '尚有未收款項',
+      message: `「${table.name}」還有 $${total - paidAmount} 未收款，確定要結束這桌嗎？`,
+      danger: true, okLabel: '確定離開', icon: 'payments'
+    }, doLeave);
   } else {
-    table.status    = 'paid';
-    table.paidAt    = Date.now();
-    table.paidTotal = total;
-    table.paidFlag  = false;
-    dbOrders.child(activeTableId).set(table);
-    showToast(`客人離開，共 $${total}`);
+    doLeave();
   }
-  closeTableModal();
 });
 
 document.getElementById('btnToggleFixed').addEventListener('click', () => {
@@ -1236,8 +1283,7 @@ document.getElementById('btnRevertPaid').addEventListener('click', () => {
     dbOrders.child(activeTableId).update({
       status: 'served',
       paidAt: null,
-      paidTotal: null,
-      paidFlag: false
+      paidTotal: null
     });
     showToast(`「${table.name}」已退回已出餐`);
   });
@@ -1308,7 +1354,6 @@ function executeTransfer(targetId) {
     order: target.order,
     items: source.items || {},
     ...(source.seatedAt ? { seatedAt: source.seatedAt } : {}),
-    ...(source.paidFlag ? { paidFlag: true } : {}),
     ...(target.fixed    ? { fixed: true }    : {})
   };
   updates[`cafe_orders/${activeTableId}`] = {
