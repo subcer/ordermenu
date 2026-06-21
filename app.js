@@ -160,18 +160,13 @@ function paidSummary(table) {
   };
 }
 
-// 加點時若訂單已有同名稱/同價格/同備註且尚未出餐的品項，直接累加數量，
-// 不要開新的一行；已出餐/已收款的品項視為「上一輪」，不會被合併進去
-function addOrIncrementItem(table, { name, price, note, qty }) {
+// 加點時依選擇的數量，拆成多筆各 1 杯的品項，方便廚房逐杯勾選出餐
+function addItemUnits(table, { name, price, note, qty }) {
   if (!table.items) table.items = {};
-  const existing = Object.values(table.items).find(i =>
-    i.name === name && Number(i.price) === Number(price) && (i.note || '') === (note || '') && !i.done
-  );
-  if (existing) {
-    existing.qty = (Number(existing.qty) || 1) + qty;
-  } else {
+  const n = Math.max(1, Number(qty) || 1);
+  for (let i = 0; i < n; i++) {
     const itemId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    table.items[itemId] = { name, qty, price, note: note || '', done: false, paid: false };
+    table.items[itemId] = { name, qty: 1, price, note: note || '', done: false, paid: false };
   }
 }
 
@@ -786,7 +781,7 @@ function addItem() {
   if (!name || !activeTableId) return;
 
   const table = tables[activeTableId];
-  addOrIncrementItem(table, { name, price, note, qty });
+  addItemUnits(table, { name, price, note, qty });
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
   // 已出餐後加點 → 退回點餐中
   else if (table.status === 'served') { table.status = 'ordering'; }
@@ -913,7 +908,7 @@ document.getElementById('btnOptionConfirm').addEventListener('click', () => {
   }).filter(Boolean);
 
   const table = tables[activeTableId];
-  addOrIncrementItem(table, {
+  addItemUnits(table, {
     name: item.name, price: item.price || 0,
     note: chosen.join('、'), qty: _pendingOptionQty
   });
@@ -1192,7 +1187,7 @@ document.getElementById('btnVoiceConfirm').addEventListener('click', () => {
   const table = tables[activeTableId];
 
   voiceParsedItems.forEach(item => {
-    addOrIncrementItem(table, { name: item.name, price: item.price, note: item.note, qty: item.qty });
+    addItemUnits(table, { name: item.name, price: item.price, note: item.note, qty: item.qty });
   });
 
   if (table.status === 'empty') { table.status = 'ordering'; table.seatedAt = table.seatedAt || Date.now(); }
