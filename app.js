@@ -515,7 +515,7 @@ function buildTableCard(id, table) {
         ${table.fixed ? '<span class="tc-fixed-pin material-symbols-outlined" title="固定桌">push_pin</span>' : ''}
         <span class="tc-drag-handle material-symbols-outlined">drag_indicator</span>
         ${table.paidFlag
-          ? `<span class="tc-badge tc-badge-paid-flag ${table.status}">✓ ${STATUS_LABEL[table.status]}</span>`
+          ? `<span class="tc-badge tc-badge-paid-flag ${table.status}">✓ 已收款</span>`
           : `<span class="tc-badge">${STATUS_LABEL[table.status]}</span>`}
       </div>
     </div>
