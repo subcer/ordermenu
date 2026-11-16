@@ -713,7 +713,6 @@ function updateModalContent(tableId) {
   document.getElementById('btnStartTimer').style.display     = isEmpty    ? '' : 'none';
   document.getElementById('btnMarkServed').style.display     = isOrdering ? '' : 'none';
   document.getElementById('btnLeave').style.display          = isServed   ? '' : 'none';
-  document.getElementById('btnRevertOrdering').style.display = isServed   ? '' : 'none';
   document.getElementById('btnMarkPaidVisual').style.display = (isOrdering || isServed) ? '' : 'none';
   document.getElementById('btnTransferTable').style.display  = (isOrdering || isServed) ? '' : 'none';
   document.getElementById('btnRevertPaid').style.display     = isPaid     ? '' : 'none';
@@ -1258,21 +1257,6 @@ document.getElementById('btnMarkServed').addEventListener('click', () => {
   table.status = 'served';
   dbOrders.child(activeTableId).set(table);
   showToast('已出餐，全部品項已打勾');
-});
-
-document.getElementById('btnRevertOrdering').addEventListener('click', () => {
-  const table = tables[activeTableId];
-  if (!table) return;
-  showConfirm({
-    title: '退回點餐中',
-    message: `將「${table.name}」退回點餐中？品項的出餐打勾會一併取消，收款狀態不變。`,
-    danger: false, okLabel: '退回', icon: 'undo'
-  }, () => {
-    Object.values(table.items || {}).forEach(i => { i.done = false; });
-    table.status = 'ordering';
-    dbOrders.child(activeTableId).set(table);
-    showToast(`「${table.name}」已退回點餐中`);
-  });
 });
 
 document.getElementById('btnMarkPaidVisual').addEventListener('click', () => {
