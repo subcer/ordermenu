@@ -681,6 +681,7 @@ function tableDragEnd() {
 // ── Table Modal ──
 function openTableModal(tableId) {
   activeTableId = tableId;
+  document.getElementById('inputCashGiven').value = '';
   clearVoiceResult();
   document.getElementById('voiceSection').classList.remove('recording');
   document.getElementById('tableModal').classList.add('open');
@@ -777,10 +778,43 @@ function updateTotalBar(table) {
     } else {
       note.style.display = 'none';
     }
+    updateChangeCalc(total - paidAmount);
   } else {
     bar.style.display = 'none';
   }
 }
+
+// 找零試算只在畫面上計算，不寫入資料庫；以待收金額為準（部分收款時只算還沒收的部分）
+function updateChangeCalc(due) {
+  const result = document.getElementById('changeResult');
+  document.getElementById('changeCalc').style.display = due > 0 ? '' : 'none';
+  const raw = document.getElementById('inputCashGiven').value;
+  const given = Number(raw);
+  if (due <= 0 || raw === '' || !Number.isFinite(given)) {
+    result.style.display = 'none';
+    return;
+  }
+  const diff = given - due;
+  result.style.display = '';
+  result.className = `change-calc-result ${diff >= 0 ? 'is-ok' : 'is-short'}`;
+  result.innerHTML = `<span class="change-due">應收 $${due}</span>`
+    + (diff >= 0 ? `<span class="change-amount">找零 $${diff}</span>` : `<span class="change-amount">還差 $${-diff}</span>`);
+}
+
+function refreshChangeCalc() {
+  const table = tables[activeTableId];
+  if (!table) return;
+  const { total, paidAmount } = paidSummary(table);
+  updateChangeCalc(total - paidAmount);
+}
+
+document.getElementById('inputCashGiven').addEventListener('input', refreshChangeCalc);
+document.querySelectorAll('.change-quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('inputCashGiven').value = btn.dataset.cash;
+    refreshChangeCalc();
+  });
+});
 
 function toggleItemDone(itemId) {
   const table = tables[activeTableId];

@@ -704,6 +704,35 @@ body {
 .order-total-amount { font-family: 'Manrope', sans-serif; font-size: 1.2rem; font-weight: 900; color: var(--primary); }
 .order-paid-note { font-size: 0.72rem; font-weight: 700; color: var(--blue); }
 
+.change-calc {
+  margin-top: 6px; padding-top: 8px;
+  border-top: 1px dashed rgba(152,66,21,0.25);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.change-calc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.change-calc-label { font-size: 0.78rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
+.change-calc-input {
+  flex: 1 1 90px; min-width: 80px;
+  padding: 7px 10px; font-size: 0.95rem; font-weight: 700;
+}
+.change-quick { display: flex; gap: 6px; }
+.change-quick-btn {
+  padding: 7px 10px; min-width: 52px;
+  background: var(--surface-low); color: var(--primary);
+  border: 1.5px solid rgba(152,66,21,0.3); border-radius: var(--radius-xs);
+  font-family: 'Manrope', sans-serif; font-size: 0.82rem; font-weight: 800;
+  cursor: pointer;
+}
+.change-quick-btn:active { background: var(--primary); color: #fff; }
+.change-calc-result {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 6px 10px; border-radius: var(--radius-xs);
+}
+.change-due { font-size: 0.75rem; font-weight: 700; }
+.change-amount { font-family: 'Manrope', 'Noto Sans TC', sans-serif; font-size: 1.15rem; font-weight: 900; }
+.change-calc-result.is-ok    { background: var(--green-light); color: var(--green); }
+.change-calc-result.is-short { background: var(--red-light);   color: var(--red); }
+
 /* ══════════════════════════════════════════
    Add Item Form
 ══════════════════════════════════════════ */

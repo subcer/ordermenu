@@ -17,7 +17,7 @@
   <!-- Font Awesome (for icons already in use) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-  <link rel="stylesheet" href="style.css?v=20261116">
+  <link rel="stylesheet" href="style.css?v=20261116d">
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -317,6 +317,18 @@
           <span class="order-total-amount" id="orderTotalAmount">$0</span>
         </div>
         <span class="order-paid-note" id="orderPaidNote" style="display:none"></span>
+        <div class="change-calc" id="changeCalc">
+          <div class="change-calc-row">
+            <label class="change-calc-label" for="inputCashGiven">客人付</label>
+            <input type="number" class="input-field change-calc-input" id="inputCashGiven" min="0" inputmode="numeric" placeholder="輸入金額" autocomplete="off">
+            <div class="change-quick">
+              <button type="button" class="change-quick-btn" data-cash="100">$100</button>
+              <button type="button" class="change-quick-btn" data-cash="500">$500</button>
+              <button type="button" class="change-quick-btn" data-cash="1000">$1000</button>
+            </div>
+          </div>
+          <div class="change-calc-result" id="changeResult" style="display:none"></div>
+        </div>
       </div>
 
       <!-- Add Item Form -->
@@ -751,6 +763,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20261116c"></script>
+  <script src="app.js?v=20261116d"></script>
 </body>
 </html>
