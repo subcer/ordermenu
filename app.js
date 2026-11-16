@@ -245,6 +245,7 @@ function renderWaitlist() {
           ? `<span class="wl-calling-badge">叫號中</span>`
           : `<button class="btn-wl-call" onclick="callParty('${id}')">叫號</button>`}
         <button class="btn-wl-seat" onclick="seatParty('${id}')">入座</button>
+        <button class="btn-wl-edit" onclick="openWaitlistModal('${id}')">編輯</button>
         <button class="btn-wl-remove" onclick="removeParty('${id}')" title="移除">✕</button>
       </div>
     `;
@@ -285,14 +286,41 @@ function removeParty(id) {
   });
 }
 
-function openWaitlistModal() {
+let _editingWaitlistId = null;
+
+// 舊資料只存了合併後的 name（如「王先生」），拆回姓氏與稱呼
+function splitWaitlistName(entry) {
+  if (entry.lastName != null) return { lastName: entry.lastName, title: entry.title || '' };
+  const name = entry.name || '';
+  const title = ['先生', '小姐'].find(t => name.endsWith(t) && name.length > t.length) || '';
+  return { lastName: title ? name.slice(0, -title.length) : name, title };
+}
+
+function openWaitlistModal(editId) {
   const input = document.getElementById('inputWlName');
+  const entry = editId ? waitlist[editId] : null;
+  _editingWaitlistId = entry ? editId : null;
+
+  document.getElementById('waitlistModalTitle').textContent = entry ? '編輯候補' : '新增候補';
+  document.getElementById('wlSubmitIcon').textContent       = entry ? 'save' : 'add';
+  document.getElementById('wlSubmitLabel').textContent      = entry ? '儲存修改' : '加入候補';
+
+  if (entry) {
+    const { lastName, title } = splitWaitlistName(entry);
+    input.value = lastName;
+    document.getElementById('inputWlTitle').value = title;
+    document.getElementById('inputWlPhone').value = entry.phone || '';
+    document.getElementById('inputWlSize').value  = String(entry.partySize || '');
+    document.getElementById('inputWlNote').value  = entry.note || '';
+  }
+
   input.setAttribute('readonly', true);
   document.getElementById('waitlistModal').classList.add('open');
   setTimeout(() => input.removeAttribute('readonly'), 100);
 }
 
 function closeWaitlistModal() {
+  _editingWaitlistId = null;
   document.getElementById('waitlistModal').classList.remove('open');
   document.getElementById('inputWlName').value  = '';
   document.getElementById('inputWlTitle').value = '先生';
@@ -313,12 +341,22 @@ function addWaitlistEntry() {
   if (!phone)    { document.getElementById('inputWlPhone').focus(); showToast('請輸入手機號碼'); return; }
   if (size < 1)  { document.getElementById('inputWlSize').focus(); showToast('請選擇人數'); return; }
 
-  const id = 'wl_' + Date.now();
+  const editId = _editingWaitlistId;
+  if (editId && !waitlist[editId]) {
+    showToast('這筆候補已入座或被移除');
+    closeWaitlistModal();
+    return;
+  }
+
+  const fields = { name, lastName, title, phone, partySize: size, note };
   const btn = document.getElementById('btnAddWaitlist');
   btn.disabled = true;
-  dbWaitlist.child(id).set({ name, phone, partySize: size, note, addedAt: Date.now(), status: 'waiting' })
+  const write = editId
+    ? dbWaitlist.child(editId).update(fields)
+    : dbWaitlist.child('wl_' + Date.now()).set({ ...fields, addedAt: Date.now(), status: 'waiting' });
+  write
     .then(() => {
-      showToast(`「${name}」已加入候補`);
+      showToast(editId ? `已更新「${name}」` : `「${name}」已加入候補`);
       closeWaitlistModal();
     })
     .catch(err => {
@@ -327,7 +365,7 @@ function addWaitlistEntry() {
     .finally(() => { btn.disabled = false; });
 }
 
-document.getElementById('btnOpenWaitlist').addEventListener('click', openWaitlistModal);
+document.getElementById('btnOpenWaitlist').addEventListener('click', () => openWaitlistModal());
 document.getElementById('btnCloseWaitlist').addEventListener('click', closeWaitlistModal);
 document.getElementById('btnAddWaitlist').addEventListener('click', addWaitlistEntry);
 document.getElementById('waitlistModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeWaitlistModal(); });
@@ -1326,22 +1364,83 @@ document.getElementById('tableModal').addEventListener('click', e => { if (e.tar
 document.getElementById('btnCloseModal').addEventListener('click', closeTableModal);
 
 // ── Transfer Table ──
-function openTransferModal() {
-  const empty = Object.entries(tables).filter(([id, t]) => t.status === 'empty' && id !== activeTableId);
-  const listEl = document.getElementById('transferTableList');
-  if (empty.length === 0) {
-    listEl.innerHTML = '<p class="transfer-empty">目前沒有空桌可以換</p>';
-  } else {
-    listEl.innerHTML = '';
-    empty.forEach(([id, t]) => {
+function fillTransferList(listEl, entries, emptyText, extraClass, onPick) {
+  if (entries.length === 0) {
+    listEl.innerHTML = `<p class="transfer-empty">${emptyText}</p>`;
+    return;
+  }
+  listEl.innerHTML = '';
+  entries
+    .sort((a, b) => (a[1].order || 0) - (b[1].order || 0))
+    .forEach(([id, t]) => {
       const chip = document.createElement('button');
-      chip.className = 'chip transfer-chip';
+      chip.className = `chip transfer-chip${extraClass}`;
       chip.textContent = t.name;
-      chip.addEventListener('click', () => confirmTransfer(id, t.name));
+      chip.addEventListener('click', () => onPick(id, t.name));
       listEl.appendChild(chip);
     });
-  }
+}
+
+function openTransferModal() {
+  const others = Object.entries(tables).filter(([id]) => id !== activeTableId);
+  fillTransferList(
+    document.getElementById('transferTableList'),
+    others.filter(([, t]) => t.status === 'empty'),
+    '目前沒有空桌可以換', '', confirmTransfer
+  );
+  fillTransferList(
+    document.getElementById('swapTableList'),
+    others.filter(([, t]) => t.status === 'ordering' || t.status === 'served'),
+    '目前沒有其他用餐中的桌可以對調', ' swap-chip', confirmSwap
+  );
   document.getElementById('transferModal').classList.add('open');
+}
+
+// 桌子本身的屬性（桌名、排序、固定桌）留在原位，其餘（狀態、品項、入座時間…）跟著客人走
+function tableSeatPart(t) {
+  return {
+    name: t.name,
+    ...(t.order != null ? { order: t.order } : {}),
+    ...(t.fixed ? { fixed: true } : {})
+  };
+}
+function tableGuestPart(t) {
+  const { name, order, fixed, ...guest } = t;
+  return guest;
+}
+
+function confirmSwap(targetId, targetName) {
+  const sourceName = tables[activeTableId]?.name;
+  showConfirm({
+    title: '確認對調',
+    message: `「${sourceName}」與「${targetName}」的訂單互換？`,
+    danger: false,
+    okLabel: '對調',
+    icon: 'swap_horiz'
+  }, () => executeSwap(targetId));
+}
+
+function executeSwap(targetId) {
+  const sourceId = activeTableId;
+  const source = tables[sourceId];
+  const target = tables[targetId];
+  if (!source || !target) return;
+
+  const updates = {};
+  updates[`cafe_orders/${sourceId}`] = { ...tableSeatPart(source), ...tableGuestPart(target) };
+  updates[`cafe_orders/${targetId}`] = { ...tableSeatPart(target), ...tableGuestPart(source) };
+
+  firebase.database().ref().update(updates).then(() => {
+    closeTransferModal();
+    closeTableModal();
+    showToast(`「${source.name}」與「${target.name}」已對調`);
+    const sourceAlerted = _alertedTables.has(sourceId);
+    const targetAlerted = _alertedTables.has(targetId);
+    _alertedTables.delete(sourceId);
+    _alertedTables.delete(targetId);
+    if (sourceAlerted) _alertedTables.add(targetId);
+    if (targetAlerted) _alertedTables.add(sourceId);
+  }).catch(() => showToast('對調失敗，請重試'));
 }
 
 function confirmTransfer(targetId, targetName) {
@@ -1947,18 +2046,19 @@ function renderHistoryList() {
       list.innerHTML = '<div class="history-empty">尚無歷史紀錄</div>';
       return;
     }
-    const entries = Object.values(data).sort((a, b) => b.settledAt - a.settledAt);
+    const entries = Object.values(data).sort((a, b) => String(b.date).localeCompare(String(a.date)));
     list.innerHTML = '';
     entries.forEach(rec => {
       const card = document.createElement('div');
       card.className = 'history-card';
       const tableDetail = rec.tables ? rec.tables.map(t => `${t.name} $${t.total}`).join('・') : '';
+      const meta = [`${rec.tableCount || 0} 桌`, tableDetail, rec.note].filter(Boolean).join('・');
       card.innerHTML = `
         <div class="history-card-header">
-          <span class="history-date">${rec.date}</span>
+          <span class="history-date">${rec.date}${rec.manual ? '<span class="history-manual-tag">補登</span>' : ''}</span>
           <span class="history-total">$${rec.revenue}</span>
         </div>
-        <div class="history-meta">${rec.tableCount} 桌${tableDetail ? '・' + tableDetail : ''}</div>
+        <div class="history-meta">${meta}</div>
       `;
       list.appendChild(card);
     });
@@ -1977,7 +2077,70 @@ document.getElementById('settlementModal').addEventListener('click', e => {
   if (e.target === e.currentTarget) document.getElementById('settlementModal').classList.remove('open');
 });
 
+function resetBackfillForm() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateInput = document.getElementById('inputBackfillDate');
+  dateInput.max   = toDateStr(new Date());
+  dateInput.value = toDateStr(yesterday);
+  document.getElementById('inputBackfillRevenue').value = '';
+  document.getElementById('inputBackfillTables').value  = '';
+  document.getElementById('inputBackfillNote').value    = '';
+}
+
+function saveBackfill() {
+  const dateKey = document.getElementById('inputBackfillDate').value;
+  const revenueRaw = document.getElementById('inputBackfillRevenue').value;
+  const revenue = Number(revenueRaw);
+  const tableCount = parseInt(document.getElementById('inputBackfillTables').value) || 0;
+  const note = document.getElementById('inputBackfillNote').value.trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) { showToast('請選擇日期'); return; }
+  if (dateKey > toDateStr(new Date()))      { showToast('不能補登未來的日期'); return; }
+  if (revenueRaw === '' || !Number.isFinite(revenue) || revenue < 0) {
+    document.getElementById('inputBackfillRevenue').focus();
+    showToast('請輸入營業額');
+    return;
+  }
+
+  const record = {
+    date: dateKey,
+    settledAt: Date.now(),
+    tableCount,
+    revenue,
+    manual: true,
+    ...(note ? { note } : {})
+  };
+  const write = () => dbDaily.child(dateKey).set(record)
+    .then(() => {
+      showToast(`已補登 ${dateKey} 日結 $${revenue}`);
+      resetBackfillForm();
+      document.getElementById('backfillForm').style.display = 'none';
+      renderHistoryList();
+    })
+    .catch(() => showToast('補登失敗，請重試'));
+
+  dbDaily.child(dateKey).once('value', snap => {
+    const existing = snap.val();
+    if (!existing) { write(); return; }
+    showConfirm({
+      title: '該日已有日結紀錄',
+      message: `${dateKey} 已有日結紀錄 $${existing.revenue}，要用補登的 $${revenue} 覆蓋嗎？`,
+      danger: true, okLabel: '覆蓋', icon: 'edit_calendar'
+    }, write);
+  });
+}
+
+document.getElementById('btnToggleBackfill').addEventListener('click', () => {
+  const form = document.getElementById('backfillForm');
+  const show = form.style.display === 'none';
+  if (show) resetBackfillForm();
+  form.style.display = show ? '' : 'none';
+});
+document.getElementById('btnSaveBackfill').addEventListener('click', saveBackfill);
+
 document.getElementById('btnHistory').addEventListener('click', () => {
+  document.getElementById('backfillForm').style.display = 'none';
   document.getElementById('historyModal').classList.add('open');
   renderHistoryList();
 });

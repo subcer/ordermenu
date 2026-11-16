@@ -17,7 +17,7 @@
   <!-- Font Awesome (for icons already in use) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261116">
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -386,14 +386,16 @@
       <div class="modal-header">
         <div class="modal-header-left">
           <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">open_with</span>
-          <span class="modal-title">換桌</span>
+          <span class="modal-title">換桌 / 對調</span>
         </div>
         <button class="modal-close" id="btnCloseTransfer">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-      <p class="transfer-hint">選擇要移入的空桌</p>
+      <p class="transfer-hint">換桌：整桌訂單移到空桌</p>
       <div id="transferTableList" class="transfer-table-list"></div>
+      <p class="transfer-hint transfer-hint-swap">對調：兩桌的訂單互相交換</p>
+      <div id="swapTableList" class="transfer-table-list"></div>
     </div>
   </div>
 
@@ -403,7 +405,7 @@
       <div class="modal-header">
         <div class="modal-header-left">
           <span class="material-symbols-outlined" style="color:var(--primary);font-size:1.2rem">person_add</span>
-          <span class="modal-title">新增候補</span>
+          <span class="modal-title" id="waitlistModalTitle">新增候補</span>
         </div>
         <button class="modal-close" id="btnCloseWaitlist">
           <span class="material-symbols-outlined">close</span>
@@ -447,8 +449,8 @@
         <input type="text" class="input-field" id="inputWlNote" placeholder="如：有嬰兒車、需要插座" autocomplete="off">
       </div>
       <button class="btn-primary-lg" id="btnAddWaitlist">
-        <span class="material-symbols-outlined">add</span>
-        加入候補
+        <span class="material-symbols-outlined" id="wlSubmitIcon">add</span>
+        <span id="wlSubmitLabel">加入候補</span>
       </button>
     </div>
   </div>
@@ -598,6 +600,32 @@
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
+      <button class="btn-backfill-toggle" id="btnToggleBackfill" type="button">
+        <span class="material-symbols-outlined">edit_calendar</span>補登日結（忘記日結時使用）
+      </button>
+      <div class="backfill-form" id="backfillForm" style="display:none">
+        <div class="backfill-row">
+          <div class="form-group">
+            <label class="form-label-sm">日期 <span class="form-required">*</span></label>
+            <input type="date" class="input-field" id="inputBackfillDate">
+          </div>
+          <div class="form-group">
+            <label class="form-label-sm">營業額 <span class="form-required">*</span></label>
+            <input type="number" class="input-field" id="inputBackfillRevenue" min="0" inputmode="numeric" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label-sm">桌數</label>
+            <input type="number" class="input-field" id="inputBackfillTables" min="0" inputmode="numeric" placeholder="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label-sm">備註（選填）</label>
+          <input type="text" class="input-field" id="inputBackfillNote" placeholder="如：當天忘記日結，依收銀機金額補登" autocomplete="off">
+        </div>
+        <button class="btn-primary-lg" id="btnSaveBackfill" type="button">
+          <span class="material-symbols-outlined">save</span>儲存補登
+        </button>
+      </div>
       <div id="historyList" class="history-list"></div>
     </div>
   </div>
@@ -723,6 +751,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20260621i"></script>
+  <script src="app.js?v=20261116"></script>
 </body>
 </html>

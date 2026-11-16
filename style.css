@@ -837,6 +837,9 @@ body {
 .transfer-chip { font-size: 0.88rem; padding: 8px 18px; }
 .transfer-chip:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
 .transfer-empty { font-size: 0.82rem; color: var(--text-muted); padding: 8px 0; }
+.transfer-hint-swap { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-faint); }
+.swap-chip { border-color: var(--orange); color: var(--orange); }
+.swap-chip:hover { background: var(--orange); color: #fff; border-color: var(--orange); }
 
 /* ══════════════════════════════════════════
    Forms (Add Table & Menu)
@@ -1172,6 +1175,32 @@ body {
 .history-date { font-family: 'Manrope', sans-serif; font-size: 0.9rem; font-weight: 800; }
 .history-total { font-family: 'Manrope', sans-serif; font-size: 1.1rem; font-weight: 900; color: var(--primary); }
 .history-meta { font-size: 0.72rem; color: var(--text-muted); }
+.history-manual-tag {
+  display: inline-block; margin-left: 6px; vertical-align: middle;
+  font-size: 0.66rem; font-weight: 700;
+  background: var(--orange-light); color: var(--orange);
+  border: 1px solid var(--orange); border-radius: 4px; padding: 1px 5px;
+}
+
+.btn-backfill-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; margin-bottom: 12px; padding: 10px;
+  background: var(--surface-low); color: var(--primary);
+  border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+  font-size: 0.85rem; font-weight: 700; cursor: pointer;
+}
+.btn-backfill-toggle .material-symbols-outlined { font-size: 1.1rem; }
+.backfill-form {
+  background: var(--surface-low);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.backfill-row { display: grid; grid-template-columns: 1.4fr 1fr 0.7fr; gap: 10px; }
+@media (max-width: 480px) {
+  .backfill-row { grid-template-columns: 1fr 1fr; }
+  .backfill-row .form-group:first-child { grid-column: 1 / -1; }
+}
 
 /* ══════════════════════════════════════════
    Option Picker Modal
@@ -1716,7 +1745,7 @@ body {
 .wl-actions {
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
 }
-.btn-wl-call, .btn-wl-seat, .btn-wl-remove {
+.btn-wl-call, .btn-wl-seat, .btn-wl-edit, .btn-wl-remove {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 5px 10px; border-radius: var(--radius-xs);
   border: none; cursor: pointer;
@@ -1738,10 +1767,15 @@ body {
   border: 1px solid var(--border);
 }
 .btn-wl-remove:hover { background: var(--red-light); color: var(--red); border-color: var(--red); }
+.btn-wl-edit {
+  background: var(--surface-mid); color: var(--primary);
+  border: 1px solid var(--border);
+}
+.btn-wl-edit:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
 
 @media (max-width: 480px) {
   .wl-actions { flex-direction: column; gap: 4px; }
-  .btn-wl-call, .btn-wl-seat, .btn-wl-remove { width: 100%; }
+  .btn-wl-call, .btn-wl-seat, .btn-wl-edit, .btn-wl-remove { width: 100%; }
 }
 
 /* ── Fixed Table Feature ── */
