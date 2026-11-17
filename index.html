@@ -17,7 +17,7 @@
   <!-- Font Awesome (for icons already in use) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-  <link rel="stylesheet" href="style.css?v=20261116d">
+  <link rel="stylesheet" href="style.css?v=20261117">
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -578,7 +578,7 @@
       <div class="modal-header">
         <div class="modal-header-left">
           <span class="material-symbols-outlined" style="color:var(--green);font-size:1.3rem;">event_available</span>
-          <span class="modal-title">今日日結</span>
+          <span class="modal-title" id="settlementTitle">日結</span>
         </div>
         <button class="modal-close" id="btnCloseSettlement">
           <span class="material-symbols-outlined">close</span>
@@ -587,7 +587,7 @@
       <div class="settlement-summary" id="settlementSummary"></div>
       <div class="settlement-warning">
         <span class="material-symbols-outlined">info</span>
-        執行日結後，今日已結帳紀錄將儲存至歷史並從桌面清除。
+        <span id="settlementWarningText">執行日結後，已結帳紀錄會依離開日期存到歷史，並從桌面清除。</span>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="btn btn-served" id="btnCancelSettlement" style="flex:1">取消</button>
@@ -763,6 +763,6 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=20261116d"></script>
+  <script src="app.js?v=20261117"></script>
 </body>
 </html>

@@ -1441,6 +1441,7 @@ body {
 }
 .confirm-message {
   font-size: 0.88rem; color: var(--text-sub); line-height: 1.6;
+  white-space: pre-line;
   margin: 0 0 24px;
 }
 .confirm-actions {
@@ -1868,6 +1869,19 @@ body {
   border-color: var(--orange);
 }
 
+.settlement-date-head {
+  display: flex; justify-content: space-between;
+  margin: 10px 0 4px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-faint);
+  font-size: 0.8rem; font-weight: 800; color: var(--primary);
+}
+.settlement-date-head:first-child { margin-top: 0; }
+.settlement-date-note {
+  margin: 4px 0 6px; padding: 6px 8px;
+  background: var(--orange-light); color: var(--orange);
+  border-radius: var(--radius-xs);
+  font-size: 0.72rem; font-weight: 700;
+}
 .settlement-fixed-tag {
   display: inline-block;
   margin-left: 6px;

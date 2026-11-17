@@ -49,6 +49,7 @@ firebase.auth().onAuthStateChanged(user => {
         renderStats();
         renderTodaySection();
         if (activeTableId && tables[activeTableId]) updateModalContent(activeTableId);
+        if (!_ordersLoaded) { _ordersLoaded = true; checkCatchupSettlement(); }
       });
       dbMenu.on('value', snap => {
         menuItems = snap.val() || {};
@@ -82,10 +83,14 @@ firebase.auth().onAuthStateChanged(user => {
       dbDailyQueue.on('value', snap => {
         dailyQueue = snap.val() || {};
         renderTodaySection();
+        if (!_queueLoaded) { _queueLoaded = true; checkCatchupSettlement(); }
       });
     }
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
+    const loginBtn = document.getElementById('btnLogin');
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = '<span class="material-symbols-outlined">login</span> 登入';
     if (_listenersActive) {
       _listenersActive = false;
       dbOrders.off();
@@ -95,6 +100,7 @@ firebase.auth().onAuthStateChanged(user => {
       dbWaitlist.off();
       dbDailyQueue.off();
       tables = {}; menuItems = {}; customModifiers = []; waitlist = {}; dailyQueue = {};
+      _ordersLoaded = false; _queueLoaded = false; _catchupCheckedDate = null;
       menuCategories = ['咖啡','茶飲','甜點','輕食','其他'];
     }
   }
@@ -132,12 +138,6 @@ document.getElementById('btnLogout').addEventListener('click', () => {
 });
 
 // ── Helpers ──
-function isToday(ts) {
-  if (!ts) return false;
-  const d = new Date(ts), now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-}
-
 function calcTotal(table) {
   return Object.values(table.items || {}).reduce((sum, item) => {
     return sum + (Number(item.price) || 0) * (Number(item.qty) || 1);
@@ -210,6 +210,8 @@ setInterval(() => {
   renderTables();
   checkTableTimers();
   renderWaitlist();
+  checkCatchupSettlement();
+  checkAutoSettlement();
 }, 60000);
 
 // ── Waitlist ──
@@ -383,7 +385,7 @@ function renderStats() {
 
 function renderTodaySection() {
   const paid = Object.entries(tables).filter(([, t]) => t.status === 'paid');
-  const todayQueue = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
+  const todayQueue = Object.entries(dailyQueue);
 
   const count = paid.length + todayQueue.length;
   const revenue =
@@ -404,7 +406,7 @@ function renderTodaySection() {
 function renderPaidTablesGrid(paid) {
   const grid = document.getElementById('paidTablesGrid');
   grid.innerHTML = '';
-  const todayQueue = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
+  const todayQueue = Object.entries(dailyQueue);
 
   if (paid.length === 0 && todayQueue.length === 0) {
     grid.style.display = 'none';
@@ -1993,45 +1995,25 @@ function saveEditMenuItem(id) {
 }
 
 // ── Daily Settlement ──
-function openSettlementModal() {
-  const paidToday  = Object.entries(tables).filter(([, t]) => t.status === 'paid');
-  const queueToday = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
-  if (paidToday.length === 0 && queueToday.length === 0) { showToast('今日尚無已結帳桌次'); return; }
+// 待日結的帳：一般桌是狀態 paid 的桌子，固定桌是 cafe_daily_queue 裡的紀錄。
+// 日結後會從這兩處移除，所以已日結過的帳不會被重複計算。
+const toArray = v => Array.isArray(v) ? v : Object.values(v || {});
 
-  const paidRevenue  = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
-  const queueRevenue = queueToday.reduce((sum, [, q]) => sum + (q.total || 0), 0);
-  const revenue = paidRevenue + queueRevenue;
-
-  const paidRowsHtml = paidToday.map(([, t]) =>
-    `<div class="settlement-row"><span class="name">${t.name}</span><span class="amount">$${t.paidTotal || calcTotal(t)}</span></div>`
-  ).join('');
-  const queueRowsHtml = queueToday.map(([, q]) =>
-    `<div class="settlement-row"><span class="name">${q.tableName}<span class="settlement-fixed-tag">固定桌</span></span><span class="amount">$${q.total}</span></div>`
-  ).join('');
-
-  const totalCount = paidToday.length + queueToday.length;
-  document.getElementById('settlementSummary').innerHTML = `
-    ${paidRowsHtml}${queueRowsHtml}
-    <div class="settlement-divider"></div>
-    <div class="settlement-row settlement-total">
-      <span class="name">共 ${totalCount} 桌</span>
-      <span class="amount">$${revenue}</span>
-    </div>
-  `;
-  document.getElementById('settlementModal').classList.add('open');
+function pendingDateKey(ts) {
+  return toDateStr(ts ? new Date(ts) : new Date());
 }
 
-function doSettlement() {
-  const paidToday  = Object.entries(tables).filter(([, t]) => t.status === 'paid');
-  const queueToday = Object.entries(dailyQueue).filter(([, q]) => isToday(q.completedAt));
-  if (paidToday.length === 0 && queueToday.length === 0) return;
+function collectPending() {
+  const groups = {};
+  const group = date => groups[date] || (groups[date] = { date, paid: [], queue: [] });
+  Object.entries(tables).forEach(([id, t]) => {
+    if (t.status === 'paid') group(pendingDateKey(t.paidAt)).paid.push([id, t]);
+  });
+  Object.entries(dailyQueue).forEach(([id, q]) => group(pendingDateKey(q.completedAt)).queue.push([id, q]));
+  return Object.values(groups).sort((a, b) => a.date.localeCompare(b.date));
+}
 
-  const now = new Date();
-  const dateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const paidRevenue  = paidToday.reduce((sum, [, t]) => sum + (t.paidTotal || calcTotal(t)), 0);
-  const queueRevenue = queueToday.reduce((sum, [, q]) => sum + (q.total || 0), 0);
-  const revenue = paidRevenue + queueRevenue;
-
+function buildSettlementRecord(group) {
   const itemSales = {};
   const collectItems = items => {
     Object.values(items || {}).forEach(item => {
@@ -2042,32 +2024,211 @@ function doSettlement() {
       itemSales[safeKey].revenue += (Number(item.price) || 0) * (Number(item.qty) || 1);
     });
   };
-  paidToday.forEach(([, t]) => collectItems(t.items));
-  queueToday.forEach(([, q]) => collectItems(q.items));
+  group.paid.forEach(([, t]) => collectItems(t.items));
+  group.queue.forEach(([, q]) => collectItems(q.items));
 
-  const totalCount = paidToday.length + queueToday.length;
-  const record = {
-    date: dateKey,
+  const rows = [
+    ...group.paid.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) })),
+    ...group.queue.map(([, q]) => ({ name: q.tableName, total: q.total || 0, fixed: true }))
+  ];
+  return {
+    date: group.date,
     settledAt: Date.now(),
-    tableCount: totalCount,
-    revenue,
-    tables: [
-      ...paidToday.map(([, t]) => ({ name: t.name, total: t.paidTotal || calcTotal(t) })),
-      ...queueToday.map(([, q]) => ({ name: q.tableName, total: q.total, fixed: true }))
-    ],
+    tableCount: rows.length,
+    revenue: rows.reduce((sum, r) => sum + r.total, 0),
+    tables: rows,
     itemSales
   };
+}
 
-  dbDaily.child(dateKey).set(record)
-    .then(() => Promise.all([
-      ...paidToday.map(([id]) => dbOrders.child(id).remove()),
-      ...queueToday.map(([id]) => dbDailyQueue.child(id).remove())
-    ]))
-    .then(() => {
-      document.getElementById('settlementModal').classList.remove('open');
-      showToast(`日結完成！今日營業額 $${revenue}`);
-    })
-    .catch(() => showToast('日結失敗，請重試'));
+function mergeItemSales(a, b) {
+  const out = JSON.parse(JSON.stringify(a || {}));
+  Object.entries(b || {}).forEach(([key, v]) => {
+    if (!out[key]) out[key] = { name: v.name, qty: 0, revenue: 0 };
+    out[key].qty     += v.qty     || 0;
+    out[key].revenue += v.revenue || 0;
+  });
+  return out;
+}
+
+// 同一天已有紀錄時：一般紀錄累加；補登紀錄以補登為主，
+// 金額相同才換成有明細的系統資料，不同則保留補登、系統資料另存不計入營業額
+function planDailyWrite(existing, rec) {
+  if (!existing) return { action: 'new', record: rec };
+  if (existing.manual) {
+    if (Number(existing.revenue) === rec.revenue) {
+      return { action: 'replace-manual', record: { ...rec, ...(existing.note ? { note: existing.note } : {}) } };
+    }
+    const unmerged = [...toArray(existing.unmerged), {
+      settledAt: rec.settledAt, revenue: rec.revenue, tableCount: rec.tableCount,
+      tables: rec.tables, itemSales: rec.itemSales
+    }];
+    return { action: 'keep-manual', record: { ...existing, unmerged } };
+  }
+  return {
+    action: 'merge',
+    record: {
+      ...existing,
+      settledAt: rec.settledAt,
+      tableCount: (Number(existing.tableCount) || 0) + rec.tableCount,
+      revenue: (Number(existing.revenue) || 0) + rec.revenue,
+      tables: [...toArray(existing.tables), ...rec.tables],
+      itemSales: mergeItemSales(existing.itemSales, rec.itemSales)
+    }
+  };
+}
+
+// 多台裝置同時日結時只讓一台執行；鎖超過 60 秒視為殘留（裝置當機）
+function acquireSettleLock() {
+  return firebase.database().ref('cafe_settings/settleLock')
+    .transaction(cur => (cur && Date.now() - cur < 60000) ? undefined : Date.now())
+    .then(res => res.committed);
+}
+
+async function runSettlement(shouldSettleDate) {
+  if (!(await acquireSettleLock())) return { busy: true, results: [] };
+  try {
+    const groups = collectPending().filter(g => shouldSettleDate(g.date));
+    const updates = {};
+    const results = [];
+    for (const g of groups) {
+      const rec = buildSettlementRecord(g);
+      const existing = (await dbDaily.child(g.date).once('value')).val();
+      const plan = planDailyWrite(existing, rec);
+      if (existing) updates[`cafe_daily_backup/${g.date}/${rec.settledAt}`] = existing;
+      updates[`cafe_daily/${g.date}`] = plan.record;
+      g.paid.forEach(([id]) => { updates[`cafe_orders/${id}`] = null; });
+      g.queue.forEach(([id]) => { updates[`cafe_daily_queue/${id}`] = null; });
+      results.push({ date: g.date, action: plan.action, revenue: rec.revenue, tableCount: rec.tableCount, existingRevenue: existing ? existing.revenue : null });
+    }
+    if (results.length) await firebase.database().ref().update(updates);
+    return { busy: false, results };
+  } finally {
+    firebase.database().ref('cafe_settings/settleLock').remove();
+  }
+}
+
+function describeExisting(existing, rec) {
+  if (!existing) return '';
+  const plan = planDailyWrite(existing, rec);
+  if (plan.action === 'merge')          return `這天已日結過 $${existing.revenue}，將累加為 $${plan.record.revenue}`;
+  if (plan.action === 'replace-manual') return `這天補登 $${existing.revenue}，與系統金額相同，改用系統明細`;
+  return `這天補登 $${existing.revenue}，與系統金額 $${rec.revenue} 不同，將保留補登金額`;
+}
+
+let _settlementScope = 'all';
+
+async function openSettlementModal(scope = 'all') {
+  const today = toDateStr(new Date());
+  const groups = collectPending().filter(g => scope === 'all' || g.date < today);
+  if (groups.length === 0) { showToast('目前沒有待日結的帳'); return; }
+  _settlementScope = scope;
+
+  const isCatchup = scope === 'past';
+  document.getElementById('settlementTitle').textContent = isCatchup ? '補日結前幾天的帳' : '日結';
+  document.getElementById('settlementWarningText').textContent = isCatchup
+    ? '發現前幾天還沒日結的帳，確認後會依離開日期記到各自的日期。'
+    : '執行日結後，已結帳紀錄會依離開日期存到歷史，並從桌面清除。';
+
+  const summary = document.getElementById('settlementSummary');
+  summary.innerHTML = '<div class="history-empty">載入中…</div>';
+  document.getElementById('settlementModal').classList.add('open');
+
+  const multiDate = groups.length > 1 || groups[0].date !== today;
+  const sections = await Promise.all(groups.map(async g => {
+    const rec = buildSettlementRecord(g);
+    const existing = (await dbDaily.child(g.date).once('value')).val();
+    const note = describeExisting(existing, rec);
+    const rows = rec.tables.map(r =>
+      `<div class="settlement-row"><span class="name">${r.name}${r.fixed ? '<span class="settlement-fixed-tag">固定桌</span>' : ''}</span><span class="amount">$${r.total}</span></div>`
+    ).join('');
+    return { rec, html: `
+      ${multiDate ? `<div class="settlement-date-head"><span>${g.date}${g.date === today ? '（今天）' : ''}</span><span>$${rec.revenue}</span></div>` : ''}
+      ${note ? `<div class="settlement-date-note">${note}</div>` : ''}
+      ${rows}` };
+  }));
+
+  const totalCount   = sections.reduce((s, x) => s + x.rec.tableCount, 0);
+  const totalRevenue = sections.reduce((s, x) => s + x.rec.revenue, 0);
+  summary.innerHTML = `
+    ${sections.map(x => x.html).join('')}
+    <div class="settlement-divider"></div>
+    <div class="settlement-row settlement-total">
+      <span class="name">共 ${totalCount} 桌</span>
+      <span class="amount">$${totalRevenue}</span>
+    </div>
+  `;
+}
+
+function reportSettlementResults(results, prefix) {
+  if (!results.length) return;
+  const total = results.reduce((s, r) => s + r.revenue, 0);
+  const kept = results.filter(r => r.action === 'keep-manual');
+  if (kept.length === 0) {
+    const dates = results.map(r => r.date.slice(5).replace('-', '/')).join('、');
+    showToast(`${prefix}完成！${dates} 共 $${total}`);
+    return;
+  }
+  showConfirm({
+    title: `${prefix}完成，請對照補登金額`,
+    message: kept.map(r =>
+      `${r.date}：補登 $${r.existingRevenue}，系統算出 $${r.revenue}，已保留補登金額（系統資料另存備查，不計入營業額）`
+    ).join('\n'),
+    danger: false, okLabel: '知道了', icon: 'fact_check'
+  }, () => {});
+}
+
+async function doSettlement() {
+  const btn = document.getElementById('btnConfirmSettlement');
+  btn.disabled = true;
+  const today = toDateStr(new Date());
+  const scope = _settlementScope;
+  try {
+    const { busy, results } = await runSettlement(date => scope === 'all' || date < today);
+    if (busy) { showToast('另一台裝置正在日結，請稍後再試'); return; }
+    document.getElementById('settlementModal').classList.remove('open');
+    if (results.length === 0) { showToast('帳已經被其他裝置日結了'); return; }
+    reportSettlementResults(results, scope === 'past' ? '補日結' : '日結');
+  } catch (err) {
+    showToast('日結失敗，請重試' + (err && err.code === 'PERMISSION_DENIED' ? '（資料庫權限不足）' : ''));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// 開啟系統（或跨日）時，若有昨天以前沒日結的帳，先預覽再讓使用者確認補日結
+let _ordersLoaded = false;
+let _queueLoaded  = false;
+let _catchupCheckedDate = null;
+
+function checkCatchupSettlement() {
+  if (!_listenersActive || !_ordersLoaded || !_queueLoaded) return;
+  const today = toDateStr(new Date());
+  if (_catchupCheckedDate === today) return;
+  _catchupCheckedDate = today;
+  if (collectPending().some(g => g.date < today)) openSettlementModal('past');
+}
+
+// 23:50 後自動日結一次；整天只會由一台裝置執行
+let _autoSettleTriedDate = null;
+
+async function checkAutoSettlement() {
+  if (!_listenersActive || !_ordersLoaded || !_queueLoaded) return;
+  const now = new Date();
+  if (now.getHours() !== 23 || now.getMinutes() < 50) return;
+  const today = toDateStr(now);
+  if (_autoSettleTriedDate === today) return;
+  _autoSettleTriedDate = today;
+
+  const claim = await firebase.database().ref('cafe_settings/autoSettleDate')
+    .transaction(cur => cur === today ? undefined : today);
+  if (!claim.committed) return;
+  try {
+    const { results } = await runSettlement(() => true);
+    reportSettlementResults(results, '自動日結');
+  } catch {
+    showToast('自動日結失敗，明天開啟系統時會再提醒補日結');
+  }
 }
 
 function renderHistoryList() {
@@ -2099,7 +2260,7 @@ function renderHistoryList() {
   });
 }
 
-document.getElementById('btnSettlement').addEventListener('click', openSettlementModal);
+document.getElementById('btnSettlement').addEventListener('click', () => openSettlementModal('all'));
 document.getElementById('btnConfirmSettlement').addEventListener('click', doSettlement);
 document.getElementById('btnCancelSettlement').addEventListener('click', () => {
   document.getElementById('settlementModal').classList.remove('open');
@@ -2145,7 +2306,12 @@ function saveBackfill() {
     manual: true,
     ...(note ? { note } : {})
   };
-  const write = () => dbDaily.child(dateKey).set(record)
+  const write = existing => {
+    const updates = { [`cafe_daily/${dateKey}`]: record };
+    if (existing) updates[`cafe_daily_backup/${dateKey}/${record.settledAt}`] = existing;
+    return firebase.database().ref().update(updates);
+  };
+  const save = existing => write(existing)
     .then(() => {
       showToast(`已補登 ${dateKey} 日結 $${revenue}`);
       resetBackfillForm();
@@ -2156,12 +2322,12 @@ function saveBackfill() {
 
   dbDaily.child(dateKey).once('value', snap => {
     const existing = snap.val();
-    if (!existing) { write(); return; }
+    if (!existing) { save(null); return; }
     showConfirm({
       title: '該日已有日結紀錄',
       message: `${dateKey} 已有日結紀錄 $${existing.revenue}，要用補登的 $${revenue} 覆蓋嗎？`,
       danger: true, okLabel: '覆蓋', icon: 'edit_calendar'
-    }, write);
+    }, () => save(existing));
   });
 }
 
