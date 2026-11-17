@@ -185,7 +185,13 @@ function formatElapsed(minutes) {
   return h > 0 ? `${h}h${String(m).padStart(2,'0')}m` : `${m}m`;
 }
 
+const _queuedTimerAlerts = [];
+
 function showTimerAlert(tableName) {
+  if (document.getElementById('confirmModal').classList.contains('open')) {
+    _queuedTimerAlerts.push(tableName);
+    return;
+  }
   showConfirm({
     title: '用餐時間提醒',
     message: `${tableName} 已用餐超過 2 小時，請注意桌況。`,
@@ -1491,7 +1497,8 @@ function confirmTransfer(targetId, targetName) {
 }
 
 function executeTransfer(targetId) {
-  const source = tables[activeTableId];
+  const sourceId = activeTableId;
+  const source = tables[sourceId];
   const target = tables[targetId];
   if (!source || !target) return;
 
@@ -1504,7 +1511,7 @@ function executeTransfer(targetId) {
     ...(source.seatedAt ? { seatedAt: source.seatedAt } : {}),
     ...(target.fixed    ? { fixed: true }    : {})
   };
-  updates[`cafe_orders/${activeTableId}`] = {
+  updates[`cafe_orders/${sourceId}`] = {
     name: source.name,
     status: 'empty',
     order: source.order,
@@ -1517,10 +1524,8 @@ function executeTransfer(targetId) {
     closeTransferModal();
     closeTableModal();
     showToast(`「${sourceName}」已換到「${target.name}」`);
-    if (_alertedTables.has(activeTableId)) {
-      _alertedTables.add(targetId);
-      _alertedTables.delete(activeTableId);
-    }
+    if (_alertedTables.has(sourceId)) _alertedTables.add(targetId);
+    _alertedTables.delete(sourceId);
   });
 }
 
@@ -2367,19 +2372,21 @@ function showConfirm({ title = '確認操作', message, danger = true, okLabel =
   document.getElementById('confirmModal').classList.add('open');
 }
 
-document.getElementById('btnConfirmOk').addEventListener('click', () => {
-  document.getElementById('confirmModal').classList.remove('open');
-  if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
-});
-document.getElementById('btnConfirmCancel').addEventListener('click', () => {
-  document.getElementById('confirmModal').classList.remove('open');
+function closeConfirm(runCallback) {
+  const cb = _confirmCallback;
   _confirmCallback = null;
-});
-document.getElementById('confirmModal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) {
-    document.getElementById('confirmModal').classList.remove('open');
-    _confirmCallback = null;
+  document.getElementById('confirmModal').classList.remove('open');
+  if (runCallback && cb) cb();
+  // 確認視窗開著時被擋下的用餐提醒，等視窗關掉再依序顯示
+  if (_queuedTimerAlerts.length && !document.getElementById('confirmModal').classList.contains('open')) {
+    showTimerAlert(_queuedTimerAlerts.shift());
   }
+}
+
+document.getElementById('btnConfirmOk').addEventListener('click', () => closeConfirm(true));
+document.getElementById('btnConfirmCancel').addEventListener('click', () => closeConfirm(false));
+document.getElementById('confirmModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeConfirm(false);
 });
 
 // ── Report Modal ──
